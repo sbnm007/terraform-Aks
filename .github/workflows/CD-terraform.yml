@@ -1,0 +1,37 @@
+name: 'CD - Auto Deploy'
+
+# Auto-trigger after successful CI on main branch
+on:
+  workflow_run:
+    workflows: ["CI - Terraform Validation"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy:
+    name: 'Deploy Infrastructure'
+    runs-on: self-hosted
+    if: github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Plan from CI
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan-${{ github.event.workflow_run.run_number }}
+          path: .
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Deploy Infrastructure
+        run: |
+          echo "Deploying infrastructure"
+          terraform apply -auto-approve tfplan
+
+      - name: Show Results
+        run: |
+          echo "Deployment complete!"
+          terraform output
