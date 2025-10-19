@@ -1,0 +1,202 @@
+name: 'Deploy Bookinfo Application'
+
+# Trigger after infrastructure deployment and allows manual runs
+on:
+  workflow_run:
+    workflows: ["CD - Auto Deploy"]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy-app:
+    name: 'Deploy Istio and Bookinfo'
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AKS Credentials
+        run: |
+          echo "Getting AKS credentials"
+          
+          # Get cluster info from Terraform outputs
+          cd /home/azureuser/actions-runner/_work/terraform-Aks/terraform-Aks/
+          CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "bookinfo-aks")
+          RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null || echo "bookinfo-rg")
+          
+          echo "Cluster: $CLUSTER_NAME"
+          echo "Resource Group: $RG_NAME"
+          
+          # Configure kubectl
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
+          
+          # Verify connection
+          kubectl get nodes
+          kubectl get namespaces
+
+      - name: Download and Install Istio
+        run: |
+          echo "Downloading Istio..."
+          
+          # Download latest Istio
+          curl -L https://istio.io/downloadIstio | sh -
+          
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          echo "Istio directory: $ISTIO_DIR"
+          
+          # Add istioctl to PATH
+          export PATH=$PWD/$ISTIO_DIR/bin:$PATH
+          
+          # Verify istioctl
+          istioctl version --remote=false
+          
+          echo "Installing Istio in AKS cluster"
+          istioctl install --set values.defaultRevision=default -y
+          
+          # Wait for Istio to be ready
+          echo "Waiting for Istio components"
+          kubectl wait --for=condition=available --timeout=300s deployment/istiod -n istio-system
+          kubectl wait --for=condition=available --timeout=300s deployment/istio-ingressgateway -n istio-system
+
+      - name: Verify Istio Installation
+        run: |
+          echo "Verifying Istio installation"
+          
+          # Get Istio namespaces
+          kubectl get namespaces | grep istio
+          
+          # Get Istio pods
+          kubectl get pods -n istio-system
+          
+          # Get Istio services
+          kubectl get svc -n istio-system
+          
+          # Get LoadBalancer IP
+          echo "Getting LoadBalancer external IP."
+          kubectl get svc istio-ingressgateway -n istio-system
+
+      - name: Allowing Istio Injection in Default Namespace
+        run: |
+          echo "Enabling Istio injection for default namespace..."
+          kubectl label namespace default istio-injection=enabled --overwrite
+          
+          kubectl get namespace default --show-labels
+
+      - name: Deploy Bookinfo Application
+        run: |
+          echo "Deploying Bookinfo application"
+
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Deploy Bookinfo services
+          kubectl apply -f $ISTIO_DIR/samples/bookinfo/platform/kube/bookinfo.yaml
+          
+          # Wait for deployments
+          echo "Waiting for Bookinfo services"
+          kubectl wait --for=condition=available --timeout=300s deployment/productpage-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/details-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/ratings-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v2
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v3
+
+      - name: Configure Bookinfo Gateway
+        run: |
+          echo "Configuring Bookinfo gateway"
+
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Deploy gateway and virtual service
+          kubectl apply -f $ISTIO_DIR/samples/bookinfo/networking/bookinfo-gateway.yaml
+          
+          # Verify gateway
+          kubectl get gateway
+          kubectl get virtualservice
+
+      - name: Verify Application Deployment
+        run: |
+          echo "Verifying application deployment"
+
+          # Get all services
+          kubectl get services
+          
+          # Get all pods
+          kubectl get pods
+          
+          # Get if pods
+          kubectl get pods -o wide
+          
+          # Get gateway and virtual service
+          kubectl get gateway bookinfo-gateway
+          kubectl get virtualservice bookinfo
+
+      - name: Get Application URL
+        run: |
+          echo "Getting application access information"
+          
+          sleep 2
+
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          
+          if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
+            echo "External IP: $EXTERNAL_IP"
+            echo "Bookinfo Application URL: http://$EXTERNAL_IP/productpage"
+          else
+            echo "External IP not ready - check manually:"
+            kubectl get svc istio-ingressgateway -n istio-system
+          fi
+
+      - name: Test Application
+        run: |
+          echo "Testing application connectivity."
+          
+          # Get external IP
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          
+          if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
+            echo "Testing connectivity to $EXTERNAL_IP"
+            
+            # Test health endpoint
+            curl -f "http://$EXTERNAL_IP:15021/healthz/ready" || echo "Health check failed"
+            
+            # Test application (with retries)
+            for i in {1..5}; do
+              if curl -f "http://$EXTERNAL_IP/productpage" > /dev/null 2>&1; then
+                echo "Application is accessible"
+                break
+              else
+                echo "Application not ready yet (attempt $i/5)"
+                sleep 30
+              fi
+            done
+          else
+            echo "Cannot test - no external IP assigned"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "Bookinfo deployment completed!"
+          echo ""
+          echo "Deployment Summary:"
+          echo "- Istio installed and configured"
+          echo "- Bookinfo application deployed"
+          echo "- Gateway and routing configured"
+          echo ""
+          
+          # Show final status
+          kubectl get pods
+          kubectl get svc
+          kubectl get gateway
+          
+          echo ""
+          echo "Access your application:"
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
+            echo "URL: http://$EXTERNAL_IP/productpage"
+          else
+            echo "External IP still pending - check 'kubectl get svc istio-ingressgateway -n istio-system'"
+          fi

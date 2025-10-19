@@ -27,9 +27,12 @@ jobs:
         uses: actions/checkout@v4
 
       # Run Terraform Checks
-      - name: Terraform Version
+      - name: Checking Tools
         run: |
           terraform --version
+          az --version
+          kubectl version --client
+          git --version
           
       - name: Check if main.tf exists
         run: |
@@ -58,17 +61,9 @@ jobs:
       - name: Terraform Plan
         run: |
           echo "=== Running Terraform Plan ==="
-          terraform plan -out=tfplan 
+          terraform plan
           
-      - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan-${{ github.run_number }}
-          path: tfplan
-          retention-days: 30
-
       - name: CI Complete
         run: |
           echo "🎉 CI validation completed successfully!"
-          echo "Plan artifact uploaded: terraform-plan-${{ github.run_number }}"
           

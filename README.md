@@ -124,10 +124,11 @@ curl -L https://istio.io/downloadIstio | sh -
 
 1) Create Azure Resources with Terraform code from local machine- Done 
 Without Tests
-Time taken to create = 
+Time taken to create = approx 5 mins
 Time taken to destroy = approx 5 mins
 
 2) Deploy Bookinfo Application, Service Mes Istio into the cluster and able to access via HTTP - Done (locally and on AKS) MANUALLY - Done
+
   a) Access cluster
     - setupp kubeconfig file
 

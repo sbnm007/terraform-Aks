@@ -16,13 +16,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      # - name: Download Plan from CI
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: terraform-plan-${{ github.event.workflow_run.run_number }}
-      #     path: .
-
+        
       - name: Terraform Init
         run: terraform init
 
