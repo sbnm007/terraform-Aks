@@ -149,7 +149,7 @@ jobs:
             kubectl get svc istio-ingressgateway -n istio-system
           fi
           
-      - name: Test Application
+            - name: Test Application
         run: |
           echo "Testing application connectivity."
           
@@ -160,11 +160,15 @@ jobs:
           if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
             echo "Testing connectivity to $EXTERNAL_IP"
             
-            # Test application (single attempt)
-            if curl -f "http://$EXTERNAL_IP/productpage" > /dev/null 2>&1; then
+            # Test with timeout and better error handling
+            echo "Testing health endpoint..."
+            
+            echo "Testing application endpoint..."
+            if curl -f --connect-timeout 10 --max-time 30 "http://$EXTERNAL_IP/productpage" > /dev/null 2>&1; then
               echo "Application is accessible"
             else
               echo "Application not ready yet - may need more time"
+              echo "Try accessing manually: http://$EXTERNAL_IP/productpage"
             fi
           else
             echo "Cannot test - no external IP assigned"
