@@ -58,7 +58,7 @@ jobs:
       - name: Terraform Plan
         run: |
           echo "=== Running Terraform Plan ==="
-          terraform plan
+          terraform plan -out=tfplan 
           
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
