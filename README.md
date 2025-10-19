@@ -14,15 +14,6 @@ az account set --subscription $SUBSCRIPTION
 
 # My default cloud account doesnt support creating service principle
 
- region = (Europe) North Europe
-
-
-#The default is marked with an *; the default tenant is 'Trinity College Dublin' and subscription is 'Azure for Students' (c21f04ba-0c38-4dc8-aaab-788f8c1bfee5).
-
-
-
-
-
 
 # Installing and Configuring Booking App
 
