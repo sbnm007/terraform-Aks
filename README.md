@@ -150,5 +150,30 @@ Time taken to destroy = approx 5 mins
 Approach based on Limitations seen for CICD
 
 1) I will configure an admin server with my azure credentials and authenticate the server with Azure Cloud
-2) I will configure that server as a Github Runner and checkout my repo to it to deploy infra
+2) I will configure that server as a Github Runner and checkout my repo to it in order to deploy infra
+
+Basically I will work on different branch, once I want to deploy my code, I will make a pr to the main branch and I would already have a github worflow setup on this branch which works as a trigger to the main branch and its written as on: pull_request  and you specify there where you will look for changes, in that case u will mention jobs in this repo which basically valides your code post checkout , post that it will do a security scan and run tests 
+
+
+Configure Github Runner
+1) provision linux server on azure
+2) configure your creds
+3) install agent
+
+
+
+CI Pipeline
+Trigger on main branch
+checks out code
+runs tests
+run plan
+
+CD will triger when CI completed for dev
+
+# TO Do Store state file to remote backend blob storage with versioning enabled
+
+Manual approve for prod
+CD Pipeline
+
+
 
