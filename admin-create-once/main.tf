@@ -20,24 +20,24 @@ provider "azurerm" {
 locals {
   admin_tags = {
     Purpose     = "github-runner"
-    ManagedBy   = "terraform"  
+    ManagedBy   = "terraform"
     Environment = "admin"
-    Project     = "bookinfo-admin"  # Different from main project
+    Project     = "bookinfo-admin" # Different from main project
   }
 }
 
 # Resource Group
 resource "azurerm_resource_group" "admin" {
-  name     = "bookinfo-admin-rg"  # Changed: More unique name
-  location = "West Europe"        # Changed: Different region to avoid conflicts
-  
+  name     = "bookinfo-admin-rg" # Changed: More unique name
+  location = "West Europe"       # Changed: Different region to avoid conflicts
+
   tags = local.admin_tags
 }
 
 # Virtual Network
 resource "azurerm_virtual_network" "admin" {
   name                = "admin-vnet"
-  address_space       = ["172.16.0.0/16"]  # Good: Different IP range
+  address_space       = ["172.16.0.0/16"] # Good: Different IP range
   location            = azurerm_resource_group.admin.location
   resource_group_name = azurerm_resource_group.admin.name
 
@@ -81,7 +81,7 @@ resource "azurerm_network_security_group" "admin" {
     source_address_prefix      = var.my_public_ip
     destination_address_prefix = "*"
   }
-  
+
   tags = local.admin_tags
 }
 
@@ -97,7 +97,7 @@ resource "azurerm_network_interface" "admin" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.admin.id
   }
-  
+
   tags = local.admin_tags
 }
 
@@ -109,10 +109,10 @@ resource "azurerm_network_interface_security_group_association" "admin" {
 
 # The Virtual Machine
 resource "azurerm_linux_virtual_machine" "admin" {
-  name                = "github-runner-vm"  # Changed: More descriptive name
+  name                = "github-runner-vm" # Changed: More descriptive name
   resource_group_name = azurerm_resource_group.admin.name
   location            = azurerm_resource_group.admin.location
-  size                = "Standard_B1s"      # Changed: Smaller size to avoid quota issues
+  size                = "Standard_B1s" # Changed: Smaller size to avoid quota issues
   admin_username      = "azureuser"
 
   disable_password_authentication = true
@@ -135,8 +135,8 @@ resource "azurerm_linux_virtual_machine" "admin" {
     sku       = "22_04-lts-gen2"
     version   = "latest"
   }
-  
-  tags = local.admin_tags  # Fixed: Was referencing wrong variable
+
+  tags = local.admin_tags # Fixed: Was referencing wrong variable
 }
 
 # Outputs

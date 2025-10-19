@@ -21,3 +21,9 @@ curl -s https://ipinfo.io/ip
 # Configured Self hosted runner agent on server
 use this in github workflow
 runs-on: self-hosted
+
+#configuring admin server
+install az
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+az --version
