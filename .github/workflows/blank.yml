@@ -1,0 +1,65 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI for Terraform Provisioning
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  checkout:
+    # The type of runner that the job will run on
+    runs-on: self-hosted
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # Run Terraform Checks
+      - name: Terraform Version
+        run: |
+          terraform --version
+          
+      - name: Check if main.tf exists
+        run: |
+          if [ -f "main.tf" ]; then
+            echo "main.tf found - proceeding with checks"
+          else
+            echo "main.tf not found - failing workflow"
+            exit 1
+          fi
+
+      - name: Terraform Init
+        run: |
+          echo "=== Running Terraform Init ==="
+          terraform init
+
+      - name: Terraform Format
+        run: |
+          echo "=== Running Terraform Format ==="
+          terraform fmt
+
+      - name: Terraform Validate
+        run: |
+          echo "=== Running Terraform Validate ==="
+          terraform validate
+
+      - name: Terraform Plan
+        run: |
+          echo "=== Running Terraform Plan ==="
+          terraform plan
+          
+      - name: Run a multi-line script
+        run: |
+          echo "Terraform code is ready to be executed"
