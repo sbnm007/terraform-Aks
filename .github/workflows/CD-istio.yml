@@ -21,7 +21,6 @@ jobs:
           echo "Getting AKS credentials"
           
           # Get cluster info from Terraform outputs
-          cd /home/azureuser/actions-runner/_work/terraform-Aks/terraform-Aks/
           CLUSTER_NAME=$(terraform output -raw cluster_name 2>/dev/null || echo "bookinfo-aks")
           RG_NAME=$(terraform output -raw resource_group_name 2>/dev/null || echo "bookinfo-rg")
           
