@@ -14,6 +14,15 @@ az account set --subscription $SUBSCRIPTION
 
 # My default cloud account doesnt support creating service principle
 
+ region = (Europe) North Europe
+
+
+#The default is marked with an *; the default tenant is 'Trinity College Dublin' and subscription is 'Azure for Students' (c21f04ba-0c38-4dc8-aaab-788f8c1bfee5).
+
+
+Problem - Authenticating on a server for my freee account
+
+
 
 # Installing and Configuring Booking App
 
@@ -137,4 +146,9 @@ Time taken to destroy = approx 5 mins
 
 
 
+
+Approach based on Limitations seen for CICD
+
+1) I will configure an admin server with my azure credentials and authenticate the server with Azure Cloud
+2) I will configure that server as a Github Runner and checkout my repo to it to deploy infra
 

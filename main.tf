@@ -32,6 +32,8 @@ module "networking" {
   location            = azurerm_resource_group.bookinfo.location
   resource_group_name = azurerm_resource_group.bookinfo.name
   tags                = var.tags
+
+  depends_on = [azurerm_resource_group.bookinfo]
 }
 
 # AKS Cluster Module
@@ -46,6 +48,7 @@ module "cluster" {
   node_vm_size        = var.node_vm_size
   subnet_id           = module.networking.subnet_id
   tags                = var.tags
+  depends_on = [module.networking]
 }
 
 
