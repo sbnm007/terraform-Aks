@@ -27,11 +27,13 @@ az account set --subscription $SUBSCRIPTION
 # Installing and Configuring Booking App
 
 1) Download Istio
- curl -L https://istio.io/downloadIstio | sh -
+
+curl -L https://istio.io/downloadIstio | sh -
 cd istio-1.27.2/
- istioctl install --set values.defaultRevision=default -y
- k get ns
-NAME              STATUS   AGE
+istioctl install --set values.defaultRevision=default -y
+
+k get ns
+NAME              STATUS   
 default           Active   6m33s
 istio-system      Active   31s
 kube-node-lease   Active   6m33s
@@ -42,44 +44,48 @@ kube-system       Active   6m33s
 NAME                                    READY   STATUS    RESTARTS   AGE
 istio-ingressgateway-7788cdd66b-v7md9   1/1     Running   0          23s
 istiod-5556f78767-zpbp5                 1/1     Running   0          37s
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ k get svc -n istio-system
+
+
+k get svc -n istio-system
 NAME                   TYPE           CLUSTER-IP    EXTERNAL-IP      PORT(S)                                      AGE
-istio-ingressgateway   LoadBalancer   10.1.112.99   68.219.146.249   15021:31223/TCP,80:31743/TCP,443:31823/TCP   33s
+istio-ingressgateway   LoadBalancer   10.1.112.99   ###   15021:31223/TCP,80:31743/TCP,443:31823/TCP   33s
 istiod                 ClusterIP      10.1.179.21   <none>           15010/TCP,15012/TCP,443/TCP,15014/TCP        47s
 
 
 
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ kubectl label namespace default istio-injection=enabled
+kubectl label namespace default istio-injection=enabled
 namespace/default labeled
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
+
+kubectl apply -f samples/bookinfo/platform/kube/bookinfo.yaml
 service/details created
 
 kubectl apply -f samples/bookinfo/networking/bookinfo-gateway.yaml
 gateway.networking.istio.io/bookinfo-gateway created
 virtualservice.networking.istio.io/bookinfo created
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ 
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ 
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ 
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ k get gateway
+
+k get gateway
 NAME               AGE
 bookinfo-gateway   10s
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ k get svc
+
+k get svc
 NAME          TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
 details       ClusterIP   10.1.7.24      <none>        9080/TCP   62s
 kubernetes    ClusterIP   10.1.0.1       <none>        443/TCP    8m19s
 productpage   ClusterIP   10.1.181.238   <none>        9080/TCP   61s
 ratings       ClusterIP   10.1.141.81    <none>        9080/TCP   62s
 reviews       ClusterIP   10.1.81.4      <none>        9080/TCP   62s
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ k get ns
+
+k get ns
 NAME              STATUS   AGE
 default           Active   8m31s
 istio-system      Active   2m29s
 kube-node-lease   Active   8m31s
 kube-public       Active   8m31s
 kube-system       Active   8m31s
-sibin@sibin-ThinkPad-T495:~/ibm-assignment/bookinfo-terraform/istio-1.27.2$ k get svc -n istio-system
+
+k get svc -n istio-system
 NAME                   TYPE           CLUSTER-IP    EXTERNAL-IP      PORT(S)                                      AGE
-istio-ingressgateway   LoadBalancer   10.1.112.99   68.219.146.249   15021:31223/TCP,80:31743/TCP,443:31823/TCP   2m25s
+istio-ingressgateway   LoadBalancer   10.1.112.99   ###   15021:31223/TCP,80:31743/TCP,443:31823/TCP   2m25s
 istiod                 ClusterIP      10.1.179.21   <none>           15010/TCP,15012/TCP,443/TCP,15014/TCP        2m39s
 
 
