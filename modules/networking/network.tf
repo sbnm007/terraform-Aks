@@ -17,8 +17,8 @@ resource "azurerm_subnet" "aks" {
 }
 
 # Single Network Security Group with All Rules
-resource "azurerm_network_security_group" "all_services" {
-  name                = "${var.cluster_name}-all-services-nsg"
+resource "azurerm_network_security_group" "aks" {
+  name                = "${var.cluster_name}-nsg"
   location            = var.location
   resource_group_name = var.resource_group_name
 
@@ -31,7 +31,7 @@ resource "azurerm_network_security_group" "all_services" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
-    source_address_prefix      = var.my_ip
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 
@@ -44,7 +44,7 @@ resource "azurerm_network_security_group" "all_services" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "443"
-    source_address_prefix      = var.my_ip
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 
@@ -57,7 +57,7 @@ resource "azurerm_network_security_group" "all_services" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "3000"
-    source_address_prefix      = "*
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 
@@ -78,7 +78,7 @@ resource "azurerm_network_security_group" "all_services" {
 }
 
 # Single NSG Association
-resource "azurerm_subnet_network_security_group_association" "all_services" {
+resource "azurerm_subnet_network_security_group_association" "aks" {
   subnet_id                 = azurerm_subnet.aks.id
-  network_security_group_id = azurerm_network_security_group.all_services.id
+  network_security_group_id = azurerm_network_security_group.aks.id
 }

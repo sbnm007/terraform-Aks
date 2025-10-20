@@ -20,14 +20,14 @@ provider "azurerm" {
 resource "azurerm_resource_group" "bookinfo" {
   name     = var.resource_group_name
   location = var.location
-  
+
   tags = var.tags
 }
 
 # Networking Module
 module "networking" {
   source = "./modules/networking"
-  
+
   cluster_name        = var.cluster_name
   location            = azurerm_resource_group.bookinfo.location
   resource_group_name = azurerm_resource_group.bookinfo.name
@@ -39,7 +39,7 @@ module "networking" {
 # AKS Cluster Module
 module "cluster" {
   source = "./modules/cluster"
-  
+
   cluster_name        = var.cluster_name
   location            = azurerm_resource_group.bookinfo.location
   resource_group_name = azurerm_resource_group.bookinfo.name
@@ -48,7 +48,7 @@ module "cluster" {
   node_vm_size        = var.node_vm_size
   subnet_id           = module.networking.subnet_id
   tags                = var.tags
-  depends_on = [module.networking]
+  depends_on          = [module.networking]
 }
 
 
