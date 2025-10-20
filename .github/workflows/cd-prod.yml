@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["CI - Branch-Specific Validation"]
     types: [completed]
-    branches: [main]  # Only trigger when CI runs on main branch
+    # Remove branches filter - doesn't work!
   workflow_dispatch:
     inputs:
       action:
@@ -27,127 +27,90 @@ env:
   ENVIRONMENT: prod
 
 jobs:
+  check-trigger:
+    name: 'Check Trigger Conditions'
+    runs-on: self-hosted
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: Check Deployment Conditions
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ Manual trigger - will deploy"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            
+            echo "Branch: $BRANCH"
+            echo "Conclusion: $CONCLUSION"
+            
+            if [ "$BRANCH" = "main" ] && [ "$CONCLUSION" = "success" ]; then
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "✅ CI passed on main - will deploy to PROD"
+            else
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "❌ Not deploying to PROD:"
+              echo "   - Branch is '$BRANCH' (expected 'main')"
+              echo "   - CI status is '$CONCLUSION' (expected 'success')"
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "❌ Unknown trigger type"
+          fi
+
   deploy-prod:
     name: 'Deploy to Production'
     runs-on: self-hosted
-    # Only deploy if PROD CI succeeded on main branch
-    if: |
-      (github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'main') ||
-      github.event_name == 'workflow_dispatch'
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_deploy == 'true'
     
-    environment: production  # GitHub environment with protection rules
+    environment: production
     
     defaults:
       run:
-        working-directory: environments/prod
+        working-directory: azure/code/prod  # ✅ Fixed path
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
-
-      - name: Determine Action
-        id: determine-action
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "action=apply" >> $GITHUB_OUTPUT
-            echo "auto_approve=false" >> $GITHUB_OUTPUT  # Never auto-approve prod
-            echo "🚀 Auto-deployment triggered by successful PROD CI on main"
-          else
-            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
-            echo "auto_approve=${{ github.event.inputs.auto_approve }}" >> $GITHUB_OUTPUT
-            echo "📋 Manual deployment triggered"
-          fi
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Production Deployment Warning
         run: |
           echo "🚨 PRODUCTION DEPLOYMENT 🚨"
-          echo "============================"
-          echo "Trigger: ${{ github.event_name }}"
           echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Action: ${{ steps.determine-action.outputs.action }}"
-          echo "Auto-approve: ${{ steps.determine-action.outputs.auto_approve }}"
+          echo "Trigger: ${{ github.event_name }}"
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "Action: apply (auto)"
             echo "Source branch: ${{ github.event.workflow_run.head_branch }}"
-            echo "Source conclusion: ${{ github.event.workflow_run.conclusion }}"
-            echo "✅ Triggered by successful PROD CI on main branch"
+          else
+            echo "Action: ${{ github.event.inputs.action }}"
           fi
-          echo ""
-          echo "⚠️  This will affect PRODUCTION infrastructure!"
-
-      - name: Check Azure Quota
-        run: |
-          echo "=== Checking Azure Quota ==="
-          az network list-usages --location "West Europe" --query "[?name.value=='PublicIPAddresses']" --output table
 
       - name: Terraform Init
-        run: |
-          echo "=== Terraform Init ==="
-          terraform init
+        run: terraform init
 
       - name: Terraform Plan
-        if: steps.determine-action.outputs.action == 'plan' || steps.determine-action.outputs.action == 'apply'
-        run: |
-          echo "=== Terraform Plan ==="
-          terraform plan -out=tfplan-prod
-
-      - name: Production Approval Gate
-        if: steps.determine-action.outputs.action == 'apply' && github.event_name == 'workflow_run'
-        run: |
-          echo "🔒 Production deployment requires manual approval"
-          echo "This step will pause for manual review via GitHub Environment protection"
-          echo "Approve in the GitHub Actions UI to proceed"
+        if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
+        run: terraform plan -out=tfplan-prod
 
       - name: Terraform Apply
-        if: steps.determine-action.outputs.action == 'apply'
-        run: |
-          if [ "${{ steps.determine-action.outputs.auto_approve }}" = "true" ]; then
-            echo "=== Auto-approved Apply (Production) ==="
-            terraform apply -auto-approve tfplan-prod
-          else
-            echo "=== Applying with confirmation ==="
-            terraform apply -auto-approve tfplan-prod
-          fi
-
-      - name: Post-Deploy Configuration
-        if: steps.determine-action.outputs.action == 'apply'
-        run: |
-          echo "=== Post-Deployment Tasks ==="
-          
-          # Get kubectl config
-          az aks get-credentials --resource-group prod-bookinfo-rg --name prod-bookinfo-aks --overwrite-existing
-          
-          # Wait for cluster readiness
-          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        run: terraform apply -auto-approve tfplan-prod
 
       - name: Terraform Destroy
-        if: steps.determine-action.outputs.action == 'destroy'
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+
+      - name: Post-Deployment Check
+        if: (github.event.inputs.action == 'apply' || github.event_name == 'workflow_run') && success()
         run: |
-          echo "=== WARNING: Destroying Production Environment ==="
-          echo "This will DELETE all production resources!"
+          # Get cluster info from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
           
-          if [ "${{ steps.determine-action.outputs.auto_approve }}" = "true" ]; then
-            terraform destroy -auto-approve
-          else
-            terraform destroy
-          fi
-
-      - name: Deployment Summary
-        run: |
-          echo "=== Production Deployment Complete ==="
-          echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Action: ${{ steps.determine-action.outputs.action }}"
-          echo "Trigger: ${{ github.event_name }}"
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "✅ Triggered by successful PROD CI on main branch"
-          fi
-          echo "Status: ✅ SUCCESS"
-
-      - name: Notify Production Deployment
-        if: steps.determine-action.outputs.action == 'apply'
-        run: |
-          echo "🎉 Production deployment completed successfully!"
-          echo "Production environment is now updated"
-          echo "Please verify all services are functioning correctly"
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s

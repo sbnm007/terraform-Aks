@@ -14,6 +14,7 @@ jobs:
   deploy-app:
     name: 'Deploy Istio and Bookinfo'
     runs-on: self-hosted
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
     environment: development
 
     defaults:
@@ -23,18 +24,19 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - name:
+      
+      - name: Initialize Terraform Backend
         run: |
-          pwd
+          echo "Initializing Terraform to access remote state..."
           terraform init
+
       - name: Configure AKS Credentials
         run: |
           echo "Getting AKS credentials from Terraform outputs"
-        
           
-          # # Get cluster info from Terraform outputs
-          # CLUSTER_NAME=$(terraform output -raw cluster_name)
-          # RG_NAME=$(terraform output -raw resource_group_name)
+          # Get cluster info from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
           
           echo "Cluster: $CLUSTER_NAME"
           echo "Resource Group: $RG_NAME"
@@ -45,7 +47,7 @@ jobs:
           # Verify connection
           kubectl get nodes
           kubectl get namespaces
-
+      
       - name: Download and Install Istio
         run: |
           echo "Downloading Istio..."
