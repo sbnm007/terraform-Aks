@@ -1,11 +1,11 @@
 name: 'Deploy Bookinfo Application'
 
 # Trigger after infrastructure deployment and allows manual runs
-on:
-  workflow_run:
-    workflows: ["CD - Auto Deploy"]
-    types: [completed]
-  workflow_dispatch:
+# on:
+#   workflow_run:
+#     workflows: ["CD - Auto Deploy"]
+#     types: [completed]
+#   workflow_dispatch:
 
 jobs:
   deploy-app:
