@@ -75,6 +75,27 @@ jobs:
           # Get LoadBalancer IP
           echo "Getting LoadBalancer external IP."
           kubectl get svc istio-ingressgateway -n istio-system
+      
+      - name: Validate Istio Service Mesh
+        run: |
+          echo "Validating Istio service mesh components"
+          
+          # Test 1: Verify sidecar injection
+          echo "1) Checking sidecar injection in default namespace"
+          kubectl get namespace default --show-labels | grep istio-injection=enabled && echo "Istio injection enabled" || echo "Istio injection not enabled"
+          
+          # Test 2: Check Istio proxy status
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          export PATH=$PWD/$ISTIO_DIR/bin:$PATH
+          
+          # Wait for proxy to be ready
+          sleep 10
+          istioctl proxy-status || echo "Proxy status check failed - continuing"
+          
+          # Test 3: Verify Istio configuration
+          istioctl analyze || echo "Configuration analysis found issues"
+          
+          echo "Istio service mesh validation completed"
 
       - name: Allowing Istio Injection in Default Namespace
         run: |
@@ -116,6 +137,90 @@ jobs:
           kubectl get gateway
           kubectl get virtualservice
 
+      - name: Install Prometheus, Grafana, and Kiali
+        run: |
+          echo "Installing Prometheus, Grafana, and Kiali"
+          
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Install only Prometheus, Grafana, and Kiali
+          echo "Installing Prometheus..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/prometheus.yaml
+          
+          echo "Installing Grafana..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/grafana.yaml
+          
+          echo "Installing Kiali..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/kiali.yaml
+          
+          echo "Waiting for observability components to be ready"
+          
+          # Wait for deployments with timeout
+          kubectl wait --for=condition=available --timeout=300s deployment/prometheus -n istio-system || echo "Prometheus timeout - continuing"
+          kubectl wait --for=condition=available --timeout=300s deployment/grafana -n istio-system || echo "Grafana timeout - continuing"
+          kubectl wait --for=condition=available --timeout=300s deployment/kiali -n istio-system || echo "Kiali timeout - continuing"
+          
+          echo "Prometheus, Grafana, and Kiali installation completed"
+
+      - name: Expose Grafana and Kiali
+        run: |
+          echo "Exposing Grafana and Kiali with LoadBalancer services"
+          
+          # Expose only Grafana and Kiali (NOT Prometheus)
+          echo "Exposing Grafana..."
+          kubectl expose service grafana --type=LoadBalancer --name=grafana-external -n istio-system || echo "Grafana service may already exist"
+          
+          echo "Exposing Kiali..."
+          kubectl expose service kiali --type=LoadBalancer --name=kiali-external -n istio-system || echo "Kiali service may already exist"
+          
+          echo "Grafana and Kiali exposed (Prometheus kept internal)"
+
+      # - name: Get Grafana and Kiali URLs
+      #   run: |
+      #     echo "Getting Grafana and Kiali access URLs"
+          
+      #     # Wait for LoadBalancer IPs to be assigned
+      #     echo "Waiting for external IPs to be assigned"
+      #     sleep 30
+          
+      #     echo ""
+      #     echo "OBSERVABILITY DASHBOARD URLs:"
+      #     echo "================================="
+          
+      #     # Grafana
+      #     GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+      #     echo "GRAFANA:"
+      #     if [ "$GRAFANA_IP" != "pending" ] && [ ! -z "$GRAFANA_IP" ] && [ "$GRAFANA_IP" != "null" ]; then
+      #       echo "http://$GRAFANA_IP:3000"
+      #       echo "Default login: admin/admin"
+      #     else
+      #       echo " External IP pending"
+      #     fi
+          
+      #     # Kiali
+      #     KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+      #     echo "KIALI:"
+      #     if [ "$KIALI_IP" != "pending" ] && [ ! -z "$KIALI_IP" ] && [ "$KIALI_IP" != "null" ]; then
+      #       echo "http://$KIALI_IP:20001"
+      #     else
+      #       echo " External IP pending"
+      #     fi
+          
+      #     # Show Prometheus internal access
+      #     echo "PROMETHEUS (Internal Only):"
+      #     echo "kubectl port-forward -n istio-system svc/prometheus 9090:9090"
+          
+      #     echo ""
+      #     echo "Check service status:"
+      #     echo "kubectl get svc -n istio-system | grep external"
+
+      - name: Initialize Test Tracking
+        run: |
+          mkdir -p test-results
+          echo "0" > test-results/failed-tests.txt
+          echo "" > test-results/failures.txt
+
       - name: Verify Application Deployment
         run: |
           echo "Verifying application deployment"
@@ -132,68 +237,159 @@ jobs:
           # Get gateway and virtual service
           kubectl get gateway bookinfo-gateway
           kubectl get virtualservice bookinfo
-
-      - name: Get Application URL
+      
+      - name: Run Test Suite
         run: |
-          echo "Getting application access information"
+          echo "Running comprehensive test suite"
           
-          sleep 2
-
-          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          # Make all test scripts executable
+          chmod +x tests/*.sh
           
-          if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
-            echo "External IP: $EXTERNAL_IP"
-            echo "Bookinfo Application URL: http://$EXTERNAL_IP/productpage"
-          else
-            echo "External IP not ready - check manually:"
-            kubectl get svc istio-ingressgateway -n istio-system
-          fi
+          # Initialize counters
+          total_tests=0
+          passed_tests=0
+          failed_tests=0
           
-      - name: Test Application
-        run: |
-          echo "Testing application connectivity."
-          
-          sleep 2
-          
-          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          
-          if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
-            echo "Testing connectivity to $EXTERNAL_IP"
-            
-            # Test with timeout and better error handling
-            echo "Testing health endpoint..."
-            
-            echo "Testing application endpoint..."
-            if curl -f --connect-timeout 10 --max-time 30 "http://$EXTERNAL_IP/productpage" > /dev/null 2>&1; then
-              echo "Application is accessible"
-            else
-              echo "Application not ready yet - may need more time"
-              echo "Try accessing manually: http://$EXTERNAL_IP/productpage"
+          # Run each test script
+          for test_script in tests/test_*.sh; do
+            if [ -f "$test_script" ]; then
+              test_name=$(basename "$test_script" .sh)
+              echo "Running $test_name..."
+              
+              total_tests=$((total_tests + 1))
+              
+              if bash "$test_script"; then
+                echo "PASS: $test_name"
+                passed_tests=$((passed_tests + 1))
+              else
+                echo "FAIL: $test_name"
+                failed_tests=$((failed_tests + 1))
+                echo "$test_name failed" >> test-results/failures.txt
+              fi
             fi
+          done
+          
+          # Save results
+          echo "$failed_tests" > test-results/failed-tests.txt
+          echo "Total: $total_tests, Passed: $passed_tests, Failed: $failed_tests" > test-results/summary.txt
+          
+          echo "Test execution completed: $failed_tests/$total_tests tests failed"
+
+      - name: Get URLs
+        run: |
+          echo "Application and Dashboard URLs"
+          echo "============================="
+          
+          # Get and display URLs
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          
+          echo "Bookinfo App: http://$EXTERNAL_IP/productpage"
+          echo "Grafana: http://$GRAFANA_IP:3000 (admin/admin)"
+          echo "Kiali: http://$KIALI_IP:20001"
+          echo "Prometheus: kubectl port-forward -n istio-system svc/prometheus 9090:9090"
+
+      - name: Test Summary
+        run: |
+          failed_tests=$(cat test-results/failed-tests.txt)
+          
+          echo "TEST RESULTS SUMMARY"
+          echo "==================="
+          echo "Total Failed Tests: $failed_tests"
+          
+          if [ "$failed_tests" -eq 0 ]; then
+            echo "ALL TESTS PASSED!"
           else
-            echo "Cannot test - no external IP assigned"
+            echo "Test Failures:"
+            cat test-results/failures.txt
           fi
+          
+          # Save summary
+          echo "Failed Tests: $failed_tests" > test-results/summary.txt
+          echo "Date: $(date -u)" >> test-results/summary.txt
+
+      - name: Collect Deployment Info
+        run: |
+          echo "Collecting deployment information"
+
+          # Create minimal artifacts directory
+          mkdir -p deployment-info
+          
+          # Copy test results
+          cp -r test-results deployment-info/ 2>/dev/null || echo "No test results"
+          
+          # 1. Access URLs
+          cat > deployment-info/access-urls.txt << EOF
+          BOOKINFO DEPLOYMENT COMPLETED
+          =============================
+          Date: $(date -u)
+          Pipeline: ${{ github.run_number }}
+          
+          ACCESS URLs:
+          EOF
+          
+          # Get essential IPs
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          
+          echo "Bookinfo App: http://$EXTERNAL_IP/productpage" >> deployment-info/access-urls.txt
+          echo "Grafana: http://$GRAFANA_IP:3000 (admin/admin)" >> deployment-info/access-urls.txt
+          echo "Kiali: http://$KIALI_IP:20001" >> deployment-info/access-urls.txt
+          echo "Prometheus: kubectl port-forward -n istio-system svc/prometheus 9090:9090" >> deployment-info/access-urls.txt
+          
+          # 2. Service Status
+          echo "" >> deployment-info/access-urls.txt
+          echo "SERVICE STATUS:" >> deployment-info/access-urls.txt
+          kubectl get svc -n istio-system | grep -E "(ingressgateway|grafana-external|kiali-external)" >> deployment-info/access-urls.txt
+          
+          # 3. Pod Status
+          kubectl get pods -o wide > deployment-info/pod-status.txt
+          kubectl get pods -n istio-system | grep -E "(grafana|kiali|prometheus)" > deployment-info/observability-pods.txt
+          
+
+      - name: Upload Essential Deployment Info
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookinfo-essentials-${{ github.run_number }}
+          path: deployment-info/
+          retention-days: 7 
 
       - name: Deployment Summary
         run: |
-          echo "Bookinfo deployment completed!"
+          echo "BOOKINFO WITH GRAFANA & KIALI DEPLOYED!"
+          echo "========================================"
+          
+          # Add test results
+          failed_tests=$(cat test-results/failed-tests.txt 2>/dev/null || echo "0")
+          echo "Test Results: $failed_tests tests failed"
+          
           echo ""
           echo "Deployment Summary:"
-          echo "- Istio installed and configured"
+          echo "- AKS cluster configured"
+          echo "- Istio service mesh installed"
           echo "- Bookinfo application deployed"
           echo "- Gateway and routing configured"
+          echo "- Prometheus installed (internal only)"
+          echo "- Grafana exposed with LoadBalancer"
+          echo "- Kiali exposed with LoadBalancer"
           echo ""
           
-          # Show final status
-          kubectl get pods
-          kubectl get svc
-          kubectl get gateway
-          
-          echo ""
-          echo "Access your application:"
+          echo "APPLICATION ACCESS:"
+          echo "=================="
           EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           if [ ! -z "$EXTERNAL_IP" ] && [ "$EXTERNAL_IP" != "null" ]; then
-            echo "URL: http://$EXTERNAL_IP/productpage"
+            echo "Bookinfo App: http://$EXTERNAL_IP/productpage"
           else
-            echo "External IP still pending - check 'kubectl get svc istio-ingressgateway -n istio-system'"
+            echo "Bookinfo App: External IP pending"
           fi
+          
+          echo ""
+          echo "EXPOSED DASHBOARDS:"
+          echo "=================="
+          
+          # Get external IPs for Grafana and Kiali 
+          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")

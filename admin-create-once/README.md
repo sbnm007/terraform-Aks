@@ -57,3 +57,15 @@ sudo apt-get install -y kubectl
 
 # Verify installation
 kubectl version --client
+
+
+
+
+#Issue
+I was directly deploying istio images but faced image pull error probably because of rate limitting to my azure vm
+
+
+Solution to build and deploy and test custom images - Docker was down and came up
+
+
+
