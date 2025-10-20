@@ -1,11 +1,11 @@
 name: 'CD - Auto Deploy'
 
 # Auto-trigger after successful CI on main branch
-on:
-  workflow_run:
-    workflows: ["CI - Terraform Validation"]
-    branches: [main]
-    types: [completed]
+# on:
+#   workflow_run:
+#     workflows: ["CI - Terraform Validation"]
+#     branches: [main]
+#     types: [completed]
 
 jobs:
   deploy:
