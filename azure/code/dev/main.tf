@@ -35,6 +35,6 @@ module "cluster" {
   service_cidr        = var.service_cidr
   dns_service_ip      = var.dns_service_ip
   tags                = var.tags
-  
+
   depends_on = [module.networking]
 }
