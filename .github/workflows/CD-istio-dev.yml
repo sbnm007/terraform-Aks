@@ -35,9 +35,9 @@ jobs:
           echo "Getting AKS credentials from Terraform outputs"
         
           
-          # Get cluster info from Terraform outputs
-          CLUSTER_NAME=$(terraform output -raw cluster_name)
-          RG_NAME=$(terraform output -raw resource_group_name)
+          # # Get cluster info from Terraform outputs
+          # CLUSTER_NAME=$(terraform output -raw cluster_name)
+          # RG_NAME=$(terraform output -raw resource_group_name)
           
           echo "Cluster: $CLUSTER_NAME"
           echo "Resource Group: $RG_NAME"
