@@ -16,12 +16,13 @@ resource "azurerm_subnet" "aks" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Network Security Group and rule for AKS
-resource "azurerm_network_security_group" "aks" {
-  name                = "${var.cluster_name}-nsg"
+# Single Network Security Group with All Rules
+resource "azurerm_network_security_group" "all_services" {
+  name                = "${var.cluster_name}-all-services-nsg"
   location            = var.location
   resource_group_name = var.resource_group_name
 
+  # Application HTTP traffic
   security_rule {
     name                       = "AllowHTTP"
     priority                   = 1001
@@ -30,10 +31,11 @@ resource "azurerm_network_security_group" "aks" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "80"
-    source_address_prefix      = "*"
+    source_address_prefix      = var.my_ip
     destination_address_prefix = "*"
   }
 
+  # Application HTTPS traffic
   security_rule {
     name                       = "AllowHTTPS"
     priority                   = 1002
@@ -42,6 +44,32 @@ resource "azurerm_network_security_group" "aks" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "443"
+    source_address_prefix      = var.my_ip
+    destination_address_prefix = "*"
+  }
+
+  # Grafana dashboard
+  security_rule {
+    name                       = "AllowGrafana"
+    priority                   = 1003
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"
+    source_address_prefix      = "*
+    destination_address_prefix = "*"
+  }
+
+  # Kiali dashboard
+  security_rule {
+    name                       = "AllowKiali"
+    priority                   = 1004
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "20001"
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
@@ -49,8 +77,8 @@ resource "azurerm_network_security_group" "aks" {
   tags = var.tags
 }
 
-# Associate Network Security Group to Subnet
-resource "azurerm_subnet_network_security_group_association" "aks" {
+# Single NSG Association
+resource "azurerm_subnet_network_security_group_association" "all_services" {
   subnet_id                 = azurerm_subnet.aks.id
-  network_security_group_id = azurerm_network_security_group.aks.id
+  network_security_group_id = azurerm_network_security_group.all_services.id
 }
