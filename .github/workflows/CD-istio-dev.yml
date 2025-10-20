@@ -23,13 +23,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      # - name: Azure Login
-      #   run: |
-      #     az login --service-principal \
-      #       -u ${{ secrets.AZURE_CLIENT_ID }} \
-      #       -p ${{ secrets.AZURE_CLIENT_SECRET }} \
-      #       --tenant ${{ secrets.AZURE_TENANT_ID }}
+      - name:
+        run: |
+          pwd
+          terraform init
       - name: Configure AKS Credentials
         run: |
           echo "Getting AKS credentials from Terraform outputs"
