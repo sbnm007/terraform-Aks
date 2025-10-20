@@ -9,7 +9,7 @@ on:
 
 jobs:
   validate-dev:
-    name: 'Validate Dev Environment'
+    name: 'Validate DevEnvironment'
     runs-on: self-hosted
     if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
     
