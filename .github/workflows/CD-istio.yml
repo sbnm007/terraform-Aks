@@ -164,12 +164,12 @@ jobs:
         run: |
           echo "Exposing Grafana and Kiali with LoadBalancer services"
           
-          # Expose only Grafana and Kiali (NOT Prometheus)
+          # Change existing service type from ClusterIP to LoadBalancer
           echo "Exposing Grafana..."
-          kubectl expose service grafana --type=LoadBalancer --name=grafana-external -n istio-system || echo "Grafana service may already exist"
+          kubectl patch service grafana -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
           
           echo "Exposing Kiali..."
-          kubectl expose service kiali --type=LoadBalancer --name=kiali-external -n istio-system || echo "Kiali service may already exist"
+          kubectl patch service kiali -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
           
           echo "Grafana and Kiali exposed (Prometheus kept internal)"
 
@@ -279,8 +279,8 @@ jobs:
           
           # Get and display URLs
           EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          GRAFANA_IP=$(kubectl get svc grafana -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
           
           echo "Bookinfo App: http://$EXTERNAL_IP/productpage"
           echo "Grafana: http://$GRAFANA_IP:3000 (admin/admin)"
@@ -328,8 +328,8 @@ jobs:
           
           # Get essential IPs
           EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          GRAFANA_IP=$(kubectl get svc grafana -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
           
           echo "Bookinfo App: http://$EXTERNAL_IP/productpage" >> deployment-info/access-urls.txt
           echo "Grafana: http://$GRAFANA_IP:3000 (admin/admin)" >> deployment-info/access-urls.txt
@@ -339,7 +339,7 @@ jobs:
           # 2. Service Status
           echo "" >> deployment-info/access-urls.txt
           echo "SERVICE STATUS:" >> deployment-info/access-urls.txt
-          kubectl get svc -n istio-system | grep -E "(ingressgateway|grafana-external|kiali-external)" >> deployment-info/access-urls.txt
+          kubectl get svc -n istio-system | grep -E "(ingressgateway|grafana|kiali)" >> deployment-info/access-urls.txt
           
           # 3. Pod Status
           kubectl get pods -o wide > deployment-info/pod-status.txt
@@ -388,5 +388,5 @@ jobs:
           echo "=================="
           
           # Get external IPs for Grafana and Kiali 
-          GRAFANA_IP=$(kubectl get svc grafana-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          GRAFANA_IP=$(kubectl get svc grafana -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")

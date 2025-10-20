@@ -3,7 +3,7 @@ set -e
 
 echo "Testing Kiali access"
 
-KIALI_IP=$(kubectl get svc kiali-external -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
 if [ -z "$KIALI_IP" ] || [ "$KIALI_IP" = "null" ] || [ "$KIALI_IP" = "pending" ]; then
     echo "FAIL: Kiali external IP not assigned"
