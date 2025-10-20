@@ -37,25 +37,22 @@ jobs:
       - name: Download and Install Istio
         run: |
           echo "Downloading Istio..."
-          
-          # Download latest Istio
           curl -L https://istio.io/downloadIstio | sh -
           
-          # Find Istio directory
+          # Get the downloaded folder (e.g., istio-1.27.2)
           ISTIO_DIR=$(ls -d istio-* | head -1)
           echo "Istio directory: $ISTIO_DIR"
           
           # Add istioctl to PATH
           export PATH=$PWD/$ISTIO_DIR/bin:$PATH
           
-          # Verify istioctl
-          istioctl version --remote=false
+          echo "Installing Istio in AKS cluster from GCR mirror"
+          istioctl install \
+            --set hub=gcr.io/istio-release \
+            --set tag=1.27.2 \
+            --set values.defaultRevision=default -y
           
-          echo "Installing Istio in AKS cluster"
-          istioctl install --set values.defaultRevision=default -y
-          
-          # Wait for Istio to be ready
-          echo "Waiting for Istio components"
+          echo "Waiting for Istio components to be ready..."
           kubectl wait --for=condition=available --timeout=300s deployment/istiod -n istio-system
           kubectl wait --for=condition=available --timeout=300s deployment/istio-ingressgateway -n istio-system
 
