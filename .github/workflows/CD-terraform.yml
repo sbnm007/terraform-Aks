@@ -1,13 +1,13 @@
-name: 'CD - Auto Deploy'
+# name: 'CD - Auto Deploy'
 
-# Auto-trigger after successful CI on main branch
-on:
-  workflow_run:
-    workflows: ["CI - Terraform Validation"]
-    branches: [main]
-    types: [completed]
+# # Auto-trigger after successful CI on main branch
+# on:
+#   workflow_run:
+#     workflows: ["CI - Terraform Validation"]
+#     branches: [main]
+#     types: [completed]
 
-jobs:
+# jobs:
   deploy:
     name: 'Deploy Infrastructure'
     runs-on: self-hosted
