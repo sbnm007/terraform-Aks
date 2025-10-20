@@ -1,0 +1,135 @@
+name: 'CD - Deploy Dev Infra'
+
+on:
+  workflow_run:
+    workflows: ["CI - Branch-Specific Validation"]
+    ty          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "Action: apply (auto)"
+            echo "Status: AUTO-DEPLOYED"
+          else
+            echo "Action: ${{ github.event.inputs.action }}"
+            if [ "${{ github.event.inputs.action }}" = "apply" ]; then
+              echo "Status: DEPLOYED"
+            elif [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+              echo "Status: DESTROYED"
+            else
+              echo "Status: PLANNED"
+            fi
+          fied]
+    branches: [develop]  # Only trigger when CI runs on develop branch
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Deployment Action'
+        required: true
+        default: 'apply'
+        type: choice
+        options:
+        - plan
+        - apply
+        - destroy
+
+env:
+  ENVIRONMENT: dev
+
+jobs:
+  deploy-dev:
+    name: 'Deploy to Development'
+    runs-on: self-hosted
+    # Only deploy if DEV CI succeeded on develop branch
+    if: |
+      (github.event.workflow_run.conclusion == 'success' && 
+       github.event.workflow_run.head_branch == 'develop') ||
+      github.event_name == 'workflow_dispatch'
+    
+    environment: development
+    
+    defaults:
+      run:
+        working-directory: azure/environments/dev
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'develop' }}
+
+      - name: Environment Context
+        run: |
+          echo "=== Development Environment Deployment ==="
+          echo "Environment: ${{ env.ENVIRONMENT }}"
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "Action: apply (auto)"
+            echo "Trigger: CI Success"
+            echo "Auto-deployment triggered by successful CI"
+          else
+            echo "Action: ${{ github.event.inputs.action }}"
+            echo "Trigger: Manual"
+            echo "Manual deployment triggered"
+          fi
+
+      - name: Azure Login
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.AZURE_CLIENT_ID }} \
+            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Terraform Init
+        run: |
+          echo "=== Terraform Init ==="
+          terraform init
+
+      - name: Terraform Plan
+        if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
+        run: |
+          echo "=== Terraform Plan ==="
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        run: |
+          echo "=== Applying to Development Environment ==="
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          echo "=== Destroying Development Environment ==="
+          terraform destroy -auto-approve
+
+      - name: Post-Deployment AKS Check
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        run: |
+          echo "=== Post-Deployment Tasks ==="
+          
+          # Get kubectl config
+          az aks get-credentials --resource-group dev-bookinfo-rg --name dev-bookinfo-aks --overwrite-existing
+          
+          # Wait for cluster readiness
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+          
+          echo "Post-deployment AKS check completed"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "=== Development Deployment Summary ==="
+          echo "Environment: ${{ env.ENVIRONMENT }}"
+          echo "Trigger: ${{ github.event_name }}"
+          
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "Action: apply (auto)"
+            echo "Status: AUTO-DEPLOYED"
+          else
+            echo "Action: ${{ github.event.inputs.action }}"
+            if [ "${{ github.event.inputs.action }}" = "apply" ]; then
+              echo "Status: DEPLOYED"
+            elif [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+              echo "Status: DESTROYED"
+            else
+              echo "Status: PLANNED"
+            fi
+          fi
+          
+          echo "Timestamp: $(date)"

@@ -13,6 +13,16 @@ variable "resource_group_name" {
   type        = string
 }
 
+variable "vnet_address_space" {
+  description = "Address space for the virtual network"
+  type        = list(string)
+}
+
+variable "subnet_address_prefix" {
+  description = "Address prefix for the AKS subnet"
+  type        = list(string)
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)

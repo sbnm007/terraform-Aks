@@ -3,6 +3,6 @@ terraform {
     resource_group_name  = "bookinfo-admin-rg"
     storage_account_name = "tfstate389dlf88"
     container_name       = "tfstate"
-    key                  = "infrastructure.tfstate"
+    key                  = "prod/infrastructure.tfstate"
   }
 }

@@ -1,7 +1,7 @@
 # Virtual Network
 resource "azurerm_virtual_network" "bookinfo" {
   name                = "${var.cluster_name}-vnet"
-  address_space       = ["10.0.0.0/16"]
+  address_space       = var.vnet_address_space
   location            = var.location
   resource_group_name = var.resource_group_name
   
@@ -13,7 +13,7 @@ resource "azurerm_subnet" "aks" {
   name                 = "${var.cluster_name}-subnet"
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.bookinfo.name
-  address_prefixes     = ["10.0.1.0/24"]
+  address_prefixes     = var.subnet_address_prefix
 }
 
 # Single Network Security Group with All Rules
