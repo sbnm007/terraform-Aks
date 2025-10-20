@@ -1,11 +1,13 @@
 #Istio
 istio-1.27.2/
+
 # Terraform files
 .terraform/
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
-terraform.tfvars
+terraform.tfvarsls
+
 *.tfplan
 *.tfstate
 *.backupS

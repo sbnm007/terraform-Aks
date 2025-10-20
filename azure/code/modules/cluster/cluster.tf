@@ -20,8 +20,8 @@ resource "azurerm_kubernetes_cluster" "bookinfo" {
 
   network_profile {
     network_plugin = "azure"
-    service_cidr   = "10.1.0.0/16" # virtual ips for services
-    dns_service_ip = "10.1.0.10"
+    service_cidr   = var.service_cidr
+    dns_service_ip = var.dns_service_ip
   }
 
   tags = var.tags
