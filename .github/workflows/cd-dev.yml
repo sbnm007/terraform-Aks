@@ -3,19 +3,7 @@ name: 'CD - Deploy Dev Infra'
 on:
   workflow_run:
     workflows: ["CI - Branch-Specific Validation"]
-    ty          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "Action: apply (auto)"
-            echo "Status: AUTO-DEPLOYED"
-          else
-            echo "Action: ${{ github.event.inputs.action }}"
-            if [ "${{ github.event.inputs.action }}" = "apply" ]; then
-              echo "Status: DEPLOYED"
-            elif [ "${{ github.event.inputs.action }}" = "destroy" ]; then
-              echo "Status: DESTROYED"
-            else
-              echo "Status: PLANNED"
-            fi
-          fied]
+    types: [completed]
     branches: [develop]  # Only trigger when CI runs on develop branch
   workflow_dispatch:
     inputs:
@@ -46,7 +34,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: azure/environments/dev
+        working-directory: azure/code/dev
 
     steps:
       - name: Checkout Code
@@ -68,12 +56,12 @@ jobs:
             echo "Manual deployment triggered"
           fi
 
-      - name: Azure Login
-        run: |
-          az login --service-principal \
-            -u ${{ secrets.AZURE_CLIENT_ID }} \
-            -p ${{ secrets.AZURE_CLIENT_SECRET }} \
-            --tenant ${{ secrets.AZURE_TENANT_ID }}
+      # - name: Azure Login
+      #   run: |
+      #     az login --service-principal \
+      #       -u ${{ secrets.AZURE_CLIENT_ID }} \
+      #       -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+      #       --tenant ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Terraform Init
         run: |
