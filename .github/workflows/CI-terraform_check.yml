@@ -18,15 +18,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Terraform Init
-        working-directory: azure/environments/dev
+        working-directory: azure/code/dev
         run: terraform init -backend=false
 
       - name: Terraform Validate
-        working-directory: azure/environments/dev
+        working-directory: azure/code/dev
         run: terraform validate
 
       - name: Terraform Format Check
-        working-directory: azure/environments/dev
+        working-directory: azure/code/dev
         run: terraform fmt -check -recursive
 
   validate-prod:
@@ -72,22 +72,22 @@ jobs:
           if [[ "${{ github.ref }}" == "refs/heads/develop" || "${{ github.base_ref }}" == "develop" ]]; then
             echo "=== DEV BRANCH VALIDATION ==="
             if [[ "$DEV_RESULT" == "success" ]]; then
-              echo "✅ Dev environment validation passed"
+              echo "Dev environment validation passed"
               exit 0
             else
-              echo "❌ Dev environment validation failed"
+              echo "Dev environment validation failed"
               exit 1
             fi
           elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.base_ref }}" == "main" ]]; then
             echo "=== MAIN BRANCH VALIDATION ==="
             if [[ "$PROD_RESULT" == "success" ]]; then
-              echo "✅ Prod environment validation passed"
+              echo "Prod environment validation passed"
               exit 0
             else
-              echo "❌ Prod environment validation failed"
+              echo "Prod environment validation failed"
               exit 1
             fi
           else
-            echo "⚠️  Unexpected branch - no validation required"
+            echo "Unexpected branch - no validation required"
             exit 0
           fi
