@@ -20,14 +20,55 @@ env:
   ENVIRONMENT: dev
 
 jobs:
+  check-trigger:
+    name: 'Check Trigger Conditions'
+    runs-on: self-hosted
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - name: Debug Workflow Run Context
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "=== Workflow Run Debug Info ==="
+          echo "Event name: ${{ github.event_name }}"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
+          echo "Workflow name: ${{ github.event.workflow_run.name }}"
+          echo "Workflow ID: ${{ github.event.workflow_run.id }}"
+
+      - name: Check Deployment Conditions
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger - will deploy"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+            
+            echo "Branch: $BRANCH"
+            echo "Conclusion: $CONCLUSION"
+            
+            if [ "$BRANCH" = "develop" ] && [ "$CONCLUSION" = "success" ]; then
+              echo "should_deploy=true" >> $GITHUB_OUTPUT
+              echo "CI passed on develop - will deploy"
+            else
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "Not deploying:"
+              echo "   - Branch is '$BRANCH' (expected 'develop')"
+              echo "   - CI status is '$CONCLUSION' (expected 'success')"
+            fi
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Unknown trigger type"
+          fi
+
   deploy-dev:
     name: 'Deploy to Development'
     runs-on: self-hosted
-    # Only deploy if DEV CI succeeded on develop branch
-    if: |
-      (github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'develop') ||
-      github.event_name == 'workflow_dispatch'
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_deploy == 'true'
     
     environment: development
     
@@ -39,28 +80,21 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || 'develop' }}
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Environment Context
         run: |
           echo "=== Development Environment Deployment ==="
           echo "Environment: ${{ env.ENVIRONMENT }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "Action: apply (auto)"
             echo "Trigger: CI Success"
-            echo "Auto-deployment triggered by successful CI"
+            echo "CI Workflow: ${{ github.event.workflow_run.name }}"
           else
             echo "Action: ${{ github.event.inputs.action }}"
             echo "Trigger: Manual"
-            echo "Manual deployment triggered"
           fi
-
-      # - name: Azure Login
-      #   run: |
-      #     az login --service-principal \
-      #       -u ${{ secrets.AZURE_CLIENT_ID }} \
-      #       -p ${{ secrets.AZURE_CLIENT_SECRET }} \
-      #       --tenant ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Terraform Init
         run: |
@@ -86,17 +120,22 @@ jobs:
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
-        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        if: (github.event.inputs.action == 'apply' || github.event_name == 'workflow_run') && success()
         run: |
           echo "=== Post-Deployment Tasks ==="
           
-          # Get kubectl config
-          az aks get-credentials --resource-group dev-bookinfo-rg --name dev-bookinfo-aks --overwrite-existing
+          # Get cluster info from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+          
+          echo "Cluster: $CLUSTER_NAME"
+          echo "Resource Group: $RG_NAME"
+          
+          # Get kubectl config using outputs
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
           
           # Wait for cluster readiness
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
-          
-          echo "Post-deployment AKS check completed"
 
       - name: Deployment Summary
         if: always()
@@ -104,10 +143,11 @@ jobs:
           echo "=== Development Deployment Summary ==="
           echo "Environment: ${{ env.ENVIRONMENT }}"
           echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
           
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "Action: apply (auto)"
-            echo "Status: AUTO-DEPLOYED"
+            echo "Status: AUTO-DEPLOYED via CI"
           else
             echo "Action: ${{ github.event.inputs.action }}"
             if [ "${{ github.event.inputs.action }}" = "apply" ]; then
