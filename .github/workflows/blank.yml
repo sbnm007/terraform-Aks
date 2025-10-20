@@ -1,20 +1,20 @@
 name: 'CD - Deploy Dev Infra'
 
-on:
-  workflow_run:
-    workflows: ["CI - Branch-Specific Validation"]
-    types: [completed]
-  workflow_dispatch:
-    inputs:
-      action:
-        description: 'Deployment Action'
-        required: true
-        default: 'apply'
-        type: choice
-        options:
-        - plan
-        - apply
-        - destroy
+# on:
+#   workflow_run:
+#     workflows: ["CI - Branch-Specific Validation"]
+#     types: [completed]
+#   workflow_dispatch:
+#     inputs:
+#       action:
+#         description: 'Deployment Action'
+#         required: true
+#         default: 'apply'
+#         type: choice
+#         options:
+#         - plan
+#         - apply
+#         - destroy
 
 env:
   ENVIRONMENT: dev
