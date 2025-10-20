@@ -1,4 +1,4 @@
-## Using Azure Cloud for implementing and deploying Istio Open Source based Bookinfo Application
+## Using Azure Cloud for implementing and deploying Istio Open Source based Bookinfo Application - Deployment Using Terraform
 # terraform-Aks
 
 1) Connect Azure with Service Principle for terraform
