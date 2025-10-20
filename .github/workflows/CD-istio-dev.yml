@@ -174,7 +174,7 @@ jobs:
           
           echo "Prometheus, Grafana, and Kiali installation completed"
 
-      - name: Expose and Kiali
+      - name: Expose Kiali
         run: |
           echo "Exposing Kiali with LoadBalancer services"
           
@@ -182,8 +182,11 @@ jobs:
           
           echo "Exposing Kiali..."
           kubectl patch service kiali -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
+          kubectl get svc -n istio-system
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          echo "Kiali LoadBalancer IP: $KIALI_IP"
 
-          echo "Kiali exposed "
+          echo "Kiali exposed"
 
       - name: Initialize Test Tracking
         run: |
@@ -198,6 +201,9 @@ jobs:
           # Get all services
           kubectl get services
           
+          kubectl get svc -n istio-system
+          kubectl get pods -n istio-system
+
           # Get all pods
           kubectl get pods
           
