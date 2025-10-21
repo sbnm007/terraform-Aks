@@ -21,27 +21,26 @@ on:
     workflows: ["CI - Branch-Specific Validation"]
     types: [completed]
 
-env:
-  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
-
 jobs:
   deploy:
-    name: 'Deploy to ${{ env.ENVIRONMENT | title }}'
+    name: Deploy
     runs-on: self-hosted
+    # For workflow_dispatch, always run.
+    # For workflow_run, run only for develop/main branch.
     if: |
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event_name == 'workflow_run' && 
-       github.event.workflow_run.conclusion == 'success' && 
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
        (
-         (github.event.inputs.environment == 'dev' && github.event.workflow_run.head_branch == 'develop') ||
-         (github.event.inputs.environment == 'prod' && github.event.workflow_run.head_branch == 'main')
+         github.event.workflow_run.head_branch == 'develop' ||
+         github.event.workflow_run.head_branch == 'main'
        )
       )
-    environment: ${{ env.ENVIRONMENT == 'prod' && 'production' || 'development' }}
+    environment: ${{ github.event.inputs.environment == 'prod' && 'production' || 'development' }}
 
     defaults:
       run:
-        working-directory: azure/code/${{ env.ENVIRONMENT }}
+        working-directory: azure/code/${{ github.event.inputs.environment || 'dev' }}
 
     steps:
       - name: Checkout Code
@@ -53,7 +52,7 @@ jobs:
       - name: Terraform Destroy
         if: github.event.inputs.destroy == 'true'
         run: |
-          echo "Destroying ${{ env.ENVIRONMENT }} environment"
+          echo "Destroying ${{ github.event.inputs.environment || 'dev' }} environment"
           terraform destroy -auto-approve
 
       - name: Terraform Plan
@@ -63,7 +62,7 @@ jobs:
       - name: Terraform Apply
         if: github.event.inputs.destroy != 'true'
         run: |
-          echo "Deploying to ${{ env.ENVIRONMENT }}"
+          echo "Deploying to ${{ github.event.inputs.environment || 'dev' }}"
           terraform apply -auto-approve tfplan
 
       - name: Configure AKS
