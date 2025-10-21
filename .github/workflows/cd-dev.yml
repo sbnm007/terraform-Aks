@@ -10,7 +10,6 @@ on:
         type: choice
         options:
         - plan
-        - apply
         - destroy
 
 env:
@@ -37,7 +36,7 @@ jobs:
         if: github.event.inputs.action == 'plan'
         run: |
           echo "=== Terraform Plan ==="
-          terraform plan -out=tfplan
+          terraform plan
 
       - name: Manual Approval
         if: github.event.inputs.action == 'apply'
@@ -49,7 +48,7 @@ jobs:
         if: github.event.inputs.action == 'apply'
         run: |
           echo "=== Applying to Development Environment ==="
-          terraform apply -auto-approve tfplan
+          terraform apply
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
@@ -59,7 +58,7 @@ jobs:
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
-        if: (github.event.inputs.action == 'apply' && success() )
+        if: (github.event.inputs.action != 'destroy')
         run: |
           echo "=== Post-Deployment Tasks ==="
           CLUSTER_NAME=$(terraform output -raw cluster_name)
