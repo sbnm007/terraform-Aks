@@ -2,9 +2,9 @@ name: 'Deploy Bookinfo Application'
 
 # Trigger after infrastructure deployment and allows manual runs
 on:
-  workflow_run:
-    workflows: ["CD - Deploy Dev Infra"]
-    types: [completed]
+  # workflow_run:
+  #   workflows: ["CD - Deploy Dev Infra"]
+  #   types: [completed]
   workflow_dispatch:
 
 env:

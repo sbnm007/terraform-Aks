@@ -1,9 +1,9 @@
 name: 'CD - Deploy Dev Infra'
 
 on:
-  workflow_run:
-    workflows: ["CI - Branch-Specific Validation"]
-    types: [completed]
+  # workflow_run:
+  #   workflows: ["CI - Branch-Specific Validation"]
+  #   types: [completed]
   workflow_dispatch:
     inputs:
       action:
