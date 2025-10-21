@@ -169,16 +169,19 @@ jobs:
           
           echo "Prometheus, Grafana, and Kiali installation completed"
 
-      - name: Expose Grafana
+      - name: Expose Kiali
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           echo "Exposing Kiali with LoadBalancer service"
-          
-          kubectl patch service grafana -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
+
+          kubectl patch svc kiali -n istio-system   --type='merge'   -p '{"spec": {"type": "LoadBalancer", "ports": [
+    {"name": "http-kiali", "port": 20001, "protocol": "TCP", "targetPort": 20001},
+    {"name": "http-prometheus", "port": 9090, "protocol": "TCP", "targetPort": 9090}
+  ]}}'
           kubectl get svc -n istio-system
           
-          Grafana_IP=$(kubectl get svc grafana -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          echo "Grafana LoadBalancer IP: $Grafana_IP"
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          echo "Kiali LoadBalancer IP: $KIALI_IP"
 
       - name: Initialize Test Tracking
         working-directory: ${{ env.WORKING_DIR }}
@@ -229,8 +232,8 @@ jobs:
           KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
           
           echo "Bookinfo App: http://$EXTERNAL_IP/productpage"
-          echo "Grafana: http://$GRAFANA_IP:20001"
-          echo "Prometheus: kubectl port-forward -n istio-system svc/prometheus 9090:9090"
+          echo "Kiali: http://$KIALI:20001"
+         
 
       - name: Test Summary
         working-directory: ${{ env.WORKING_DIR }}
@@ -273,11 +276,11 @@ jobs:
           KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
           
           echo "Bookinfo App: http://$EXTERNAL_IP/productpage" >> deployment-info/access-urls.txt
-          echo "Grafana: http://$GRAFANA_IP:20001" >> deployment-info/access-urls.txt
+          echo "Kiali: http://$KIALI_IP:20001" >> deployment-info/access-urls.txt
           
           echo "" >> deployment-info/access-urls.txt
           echo "SERVICE STATUS:" >> deployment-info/access-urls.txt
-          kubectl get svc -n istio-system | grep -E "(ingressgateway|grafana)" >> deployment-info/access-urls.txt
+          kubectl get svc -n istio-system | grep -E "(ingressgateway|kiali)" >> deployment-info/access-urls.txt
           
           kubectl get pods -o wide > deployment-info/pod-status.txt
           kubectl get pods -n istio-system | grep -E "(grafana|kiali|prometheus)" > deployment-info/observability-pods.txt
@@ -301,7 +304,7 @@ jobs:
           echo "Test Results: $failed_tests tests failed"
           
           EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          GRAFANA_IP=$(kubectl get svc grafana -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
           
           echo "Bookinfo URL: http://$EXTERNAL_IP/productpage"
           echo "Kiali URL: http://$KIALI_IP:20001"
