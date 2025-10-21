@@ -2,7 +2,7 @@ name: 'CD - Deploy Infra (Dev/Prod)'
 
 on:
   workflow_run:
-    workflows: ["CD - Deploy Dev Infra", "CD - Deploy to Prod"]
+    workflows: ["CI - Branch-Specific Validation"]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -19,10 +19,6 @@ on:
         required: false
         default: false
         type: boolean
-
-  workflow_run:
-    workflows: ["CI - Branch-Specific Validation"]
-    types: [completed]
 
 jobs:
   deploy:
