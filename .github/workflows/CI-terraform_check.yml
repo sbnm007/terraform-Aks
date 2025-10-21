@@ -1,93 +1,93 @@
-# name: 'CI - Branch-Specific Validation'
+name: 'CI - Branch-Specific Validation'
 
-# on:
-#   pull_request:
-#     branches: [ "develop", "main" ]
-#   push:
-#     branches: [ "develop", "main" ]
-#   workflow_dispatch:
+on:
+  pull_request:
+    branches: [ "develop", "main" ]
+  push:
+    branches: [ "develop", "main" ]
+  workflow_dispatch:
 
-# jobs:
-#   validate-dev:
-#     name: 'Validate DevEnvironment'
-#     runs-on: self-hosted
-#     if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+jobs:
+  validate-dev:
+    name: 'Validate DevEnvironment'
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
     
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-#       - name: Terraform Init
-#         working-directory: azure/code/dev
-#         run: terraform init -backend=false
+      - name: Terraform Init
+        working-directory: azure/code/dev
+        run: terraform init -backend=false
 
-#       - name: Terraform Validate
-#         working-directory: azure/code/dev
-#         run: terraform validate
+      - name: Terraform Validate
+        working-directory: azure/code/dev
+        run: terraform validate
 
-#       - name: Terraform Format Check
-#         working-directory: azure/code/dev
-#         run: terraform fmt -check -recursive
+      - name: Terraform Format Check
+        working-directory: azure/code/dev
+        run: terraform fmt -check -recursive
 
-#   validate-prod:
-#     name: 'Validate Prod Environment'
-#     runs-on: self-hosted
-#     if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+  validate-prod:
+    name: 'Validate Prod Environment'
+    runs-on: self-hosted
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-#       - name: Terraform Init
-#         working-directory: azure/code/prod
-#         run: terraform init -backend=false
+      - name: Terraform Init
+        working-directory: azure/code/prod
+        run: terraform init -backend=false
 
-#       - name: Terraform Validate
-#         working-directory: azure/code/prod
-#         run: terraform validate
+      - name: Terraform Validate
+        working-directory: azure/code/prod
+        run: terraform validate
 
-#       - name: Terraform Format Check
-#         working-directory: azure/code/prod
-#         run: terraform fmt -check -recursive
+      - name: Terraform Format Check
+        working-directory: azure/code/prod
+        run: terraform fmt -check -recursive
 
-#   validation-complete:
-#     name: 'CI Validation Complete'
-#     runs-on: self-hosted
-#     needs: [validate-dev, validate-prod]
-#     if: always()
+  validation-complete:
+    name: 'CI Validation Complete'
+    runs-on: self-hosted
+    needs: [validate-dev, validate-prod]
+    if: always()
     
-#     steps:
-#       - name: CI Summary
-#         run: |
-#           echo "=== Branch-Specific Validation Results ==="
+    steps:
+      - name: CI Summary
+        run: |
+          echo "=== Branch-Specific Validation Results ==="
           
-#           # Check which jobs ran and their results
-#           DEV_RESULT="${{ needs.validate-dev.result }}"
-#           PROD_RESULT="${{ needs.validate-prod.result }}"
+          # Check which jobs ran and their results
+          DEV_RESULT="${{ needs.validate-dev.result }}"
+          PROD_RESULT="${{ needs.validate-prod.result }}"
           
-#           echo "Dev validation: $DEV_RESULT"
-#           echo "Prod validation: $PROD_RESULT"
+          echo "Dev validation: $DEV_RESULT"
+          echo "Prod validation: $PROD_RESULT"
           
-#           # Determine success based on branch
-#           if [[ "${{ github.ref }}" == "refs/heads/develop" || "${{ github.base_ref }}" == "develop" ]]; then
-#             echo "=== DEV BRANCH VALIDATION ==="
-#             if [[ "$DEV_RESULT" == "success" ]]; then
-#               echo "Dev environment validation passed"
-#               exit 0
-#             else
-#               echo "Dev environment validation failed"
-#               exit 1
-#             fi
-#           elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.base_ref }}" == "main" ]]; then
-#             echo "=== MAIN BRANCH VALIDATION ==="
-#             if [[ "$PROD_RESULT" == "success" ]]; then
-#               echo "Prod environment validation passed"
-#               exit 0
-#             else
-#               echo "Prod environment validation failed"
-#               exit 1
-#             fi
-#           else
-#             echo "Unexpected branch - no validation required"
-#             exit 0
-#           fi
+          # Determine success based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/develop" || "${{ github.base_ref }}" == "develop" ]]; then
+            echo "=== DEV BRANCH VALIDATION ==="
+            if [[ "$DEV_RESULT" == "success" ]]; then
+              echo "Dev environment validation passed"
+              exit 0
+            else
+              echo "Dev environment validation failed"
+              exit 1
+            fi
+          elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.base_ref }}" == "main" ]]; then
+            echo "=== MAIN BRANCH VALIDATION ==="
+            if [[ "$PROD_RESULT" == "success" ]]; then
+              echo "Prod environment validation passed"
+              exit 0
+            else
+              echo "Prod environment validation failed"
+              exit 1
+            fi
+          else
+            echo "Unexpected branch - no validation required"
+            exit 0
+          fi
