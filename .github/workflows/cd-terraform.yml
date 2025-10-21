@@ -1,35 +1,47 @@
-name: 'CD - Deploy Dev Infra'
+name: 'CD - Deploy Infra (Dev/Prod)'
 
 on:
-  workflow_run:
-    workflows: ["CI - Branch-Specific Validation"]
-    types: [completed]
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
       destroy:
         description: 'Destroy infrastructure?'
         required: false
         default: false
         type: boolean
 
+  workflow_run:
+    workflows: ["CI - Branch-Specific Validation"]
+    types: [completed]
+
 env:
-  ENVIRONMENT: dev
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
-  deploy-dev:
-    name: 'Deploy to Development'
+  deploy:
+    name: 'Deploy to ${{ env.ENVIRONMENT | title }}'
     runs-on: self-hosted
     if: |
       (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'workflow_run' && 
        github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'develop')
-    
-    environment: development
-    
+       (
+         (github.event.inputs.environment == 'dev' && github.event.workflow_run.head_branch == 'develop') ||
+         (github.event.inputs.environment == 'prod' && github.event.workflow_run.head_branch == 'main')
+       )
+      )
+    environment: ${{ env.ENVIRONMENT == 'prod' && 'production' || 'development' }}
+
     defaults:
       run:
-        working-directory: azure/code/dev
+        working-directory: azure/code/${{ env.ENVIRONMENT }}
 
     steps:
       - name: Checkout Code
@@ -41,7 +53,7 @@ jobs:
       - name: Terraform Destroy
         if: github.event.inputs.destroy == 'true'
         run: |
-          echo "Destroying Development Environment"
+          echo "Destroying ${{ env.ENVIRONMENT }} environment"
           terraform destroy -auto-approve
 
       - name: Terraform Plan
@@ -51,7 +63,7 @@ jobs:
       - name: Terraform Apply
         if: github.event.inputs.destroy != 'true'
         run: |
-          echo "Deploying to Development"
+          echo "Deploying to ${{ env.ENVIRONMENT }}"
           terraform apply -auto-approve tfplan
 
       - name: Configure AKS
@@ -59,10 +71,8 @@ jobs:
         run: |
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           RG_NAME=$(terraform output -raw resource_group_name)
-          
           az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
-          
           echo "Cluster ready: $CLUSTER_NAME"
 
       - name: Summary
