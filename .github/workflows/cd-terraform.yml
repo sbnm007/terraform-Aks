@@ -1,0 +1,83 @@
+name: 'CD - Deploy Infra (Dev/Prod)'
+
+on:
+  workflow_run:
+    workflows: ["CI - Branch-Specific Validation"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      destroy:
+        description: 'Destroy infrastructure?'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: self-hosted
+    # For workflow_dispatch, always run.
+    # For workflow_run, run only for develop/main branch.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       (
+         github.event.workflow_run.head_branch == 'develop' ||
+         github.event.workflow_run.head_branch == 'main'
+       )
+      )
+    environment: ${{ github.event.inputs.environment == 'prod' && 'production' || 'development' }}
+
+    defaults:
+      run:
+        working-directory: azure/code/${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        if: github.event.inputs.destroy == 'true'
+        run: |
+          echo "Destroying ${{ github.event.inputs.environment || 'dev' }} environment"
+          terraform destroy -auto-approve
+
+      - name: Terraform Plan
+        if: github.event.inputs.destroy != 'true'
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.destroy != 'true'
+        run: |
+          echo "Deploying to ${{ github.event.inputs.environment || 'dev' }}"
+          terraform apply -auto-approve tfplan
+
+      - name: Configure AKS
+        if: github.event.inputs.destroy != 'true' && success()
+        run: |
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+          echo "Cluster ready: $CLUSTER_NAME"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ github.event.inputs.destroy }}" = "true" ]; then
+            echo "Infrastructure destroyed"
+          else
+            echo "Infrastructure deployed"
+          fi
