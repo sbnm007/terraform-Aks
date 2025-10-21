@@ -20,56 +20,16 @@ env:
   ENVIRONMENT: dev
 
 jobs:
-  check-trigger:
-    name: 'Check Trigger Conditions'
-    runs-on: self-hosted
-    outputs:
-      should_deploy: ${{ steps.check.outputs.should_deploy }}
-    steps:
-      - name: Debug Workflow Run Context
-        if: github.event.workflow_run.conclusion == 'success'
-        run: |
-          echo "=== Workflow Run Debug Info ==="
-          echo "Event name: ${{ github.event_name }}"
-          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
-          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
-          echo "Head SHA: ${{ github.event.workflow_run.head_sha }}"
-          echo "Workflow name: ${{ github.event.workflow_run.name }}"
-          echo "Workflow ID: ${{ github.event.workflow_run.id }}"
-
-      - name: Check Deployment Conditions
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "Manual trigger - will deploy"
-          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
-            BRANCH="${{ github.event.workflow_run.head_branch }}"
-            CONCLUSION="${{ github.event.workflow_run.conclusion }}"
-            
-            echo "Branch: $BRANCH"
-            echo "Conclusion: $CONCLUSION"
-            
-            if [ "$BRANCH" = "develop" ] && [ "$CONCLUSION" = "success" ]; then
-              echo "should_deploy=true" >> $GITHUB_OUTPUT
-              echo "CI passed on develop - will deploy"
-            else
-              echo "should_deploy=false" >> $GITHUB_OUTPUT
-              echo "Not deploying:"
-              echo "   - Branch is '$BRANCH' (expected 'develop')"
-              echo "   - CI status is '$CONCLUSION' (expected 'success')"
-            fi
-          else
-            echo "should_deploy=false" >> $GITHUB_OUTPUT
-            echo "Unknown trigger type"
-          fi
 
   deploy-dev:
     name: 'Deploy to Development'
     runs-on: self-hosted
-    needs: check-trigger
-    if: needs.check-trigger.outputs.should_deploy == 'true'
-    
+    if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'develop')
+    environment: development
+    steps:
+      - name: Print Branch Info
+        run: echo "Branch: ${{ github.event.workflow_run.head_branch }}"
+
     environment: development
     
     defaults:
@@ -82,41 +42,41 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
-      - name: Environment Context
-        run: |
-          echo "=== Development Environment Deployment ==="
-          echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "Action: apply (auto)"
-            echo "Trigger: CI Success"
-            echo "CI Workflow: ${{ github.event.workflow_run.name }}"
-          else
-            echo "Action: ${{ github.event.inputs.action }}"
-            echo "Trigger: Manual"
-          fi
+
 
       - name: Terraform Init
         run: |
           echo "=== Terraform Init ==="
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
           terraform init
 
       - name: Terraform Plan
         if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
-        run: |
-          echo "=== Terraform Plan ==="
-          terraform plan -out=tfplan
+        run: terraform plan -out=tfplan
+
+      - name: Upload Plan (for workflow_run)
+        if: github.event_name == 'workflow_run'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: azure/code/dev/tfplan
+
+      - name: Download Plan
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: azure/code/dev/
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
-        run: |
-          echo "=== Applying to Development Environment ==="
-          terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
         run: |
           echo "=== Destroying Development Environment ==="
+          o "This action cannot be undone!"
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
