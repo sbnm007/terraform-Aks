@@ -39,13 +39,13 @@ jobs:
           terraform plan
 
       - name: Manual Approval
-        if: github.event.inputs.action == 'apply'
+        if: github.event.inputs.action == 'plan'
         run: |
           echo "Waiting for manual approval before applying to development."
           echo "Approve this job in the GitHub Actions UI to continue."
 
       - name: Terraform Apply
-        if: github.event.inputs.action == 'apply'
+        if: github.event.inputs.action == 'plan'
         run: |
           echo "=== Applying to Development Environment ==="
           terraform apply
@@ -58,7 +58,7 @@ jobs:
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
-        if: (github.event.inputs.action != 'destroy')
+        if: (github.event.inputs.action == 'plan')
         run: |
           echo "=== Post-Deployment Tasks ==="
           CLUSTER_NAME=$(terraform output -raw cluster_name)
