@@ -29,13 +29,13 @@ jobs:
           terraform init
       - name: Configure AKS Credentials
         run: |
+          terraform init
           echo "Getting AKS credentials from Terraform outputs"
-        
-          
-          # # Get cluster info from Terraform outputs
-          # CLUSTER_NAME=$(terraform output -raw cluster_name)
-          # RG_NAME=$(terraform output -raw resource_group_name)
-          
+
+          # Get cluster info from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+
           echo "Cluster: $CLUSTER_NAME"
           echo "Resource Group: $RG_NAME"
           
@@ -180,8 +180,8 @@ jobs:
           
           echo "Exposing Kiali..."
           kubectl patch service kiali -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
-
-          echo "Kiali exposed "
+          sleep 10
+          echo "Kiali exposed"
 
       - name: Initialize Test Tracking
         run: |
@@ -228,6 +228,16 @@ jobs:
           
           echo "Basic tests completed"
 
+      - name: Run Integration Tests
+        run: |
+          echo "Running integration tests from tests directory"
+          for test_script in ../tests/*; do
+            if [ -x "$test_script" ]; then
+              echo "Executing $test_script"
+              "$test_script"
+            fi
+          done
+
       - name: Get URLs
         run: |
           echo "Application and Dashboard URLs"
@@ -241,76 +251,9 @@ jobs:
           echo "Kiali: http://$KIALI_IP:20001"
           echo "Prometheus: kubectl port-forward -n istio-system svc/prometheus 9090:9090"
 
-      - name: Test Summary
-        run: |
-          failed_tests=$(cat test-results/failed-tests.txt)
-          
-          echo "TEST RESULTS SUMMARY"
-          echo "==================="
-          echo "Total Failed Tests: $failed_tests"
-          
-          if [ "$failed_tests" -eq 0 ]; then
-            echo "ALL TESTS PASSED!"
-          else
-            echo "Test Failures:"
-            cat test-results/failures.txt
-          fi
-          
-          # Save summary
-          echo "Failed Tests: $failed_tests" > test-results/summary.txt
-          echo "Date: $(date -u)" >> test-results/summary.txt
-
-      - name: Collect Deployment Info
-        run: |
-          echo "Collecting deployment information"
-
-          # Create minimal artifacts directory
-          mkdir -p deployment-info
-          
-          # Copy test results
-          cp -r test-results deployment-info/ 2>/dev/null || echo "No test results"
-          
-          # 1. Access URLs
-          cat > deployment-info/access-urls.txt << EOF
-          BOOKINFO DEPLOYMENT COMPLETED
-          =============================
-          Date: $(date -u)
-          Pipeline: ${{ github.run_number }}
-          
-          ACCESS URLs:
-          EOF
-          
-          # Get essential IPs
-          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
-          
-          echo "Bookinfo App: http://$EXTERNAL_IP/productpage" >> deployment-info/access-urls.txt
-          echo "Kiali: http://$KIALI_IP:20001" >> deployment-info/access-urls.txt
-          
-          # 2. Service Status
-          echo "" >> deployment-info/access-urls.txt
-          echo "SERVICE STATUS:" >> deployment-info/access-urls.txt
-          kubectl get svc -n istio-system | grep -E "(ingressgateway|kiali)" >> deployment-info/access-urls.txt
-          
-          # 3. Pod Status
-          kubectl get pods -o wide > deployment-info/pod-status.txt
-          kubectl get pods -n istio-system | grep -E "(grafana|kiali|prometheus)" > deployment-info/observability-pods.txt
-          
-
-      - name: Upload Essential Deployment Info
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bookinfo-essentials-${{ github.run_number }}
-          path: deployment-info/
-          retention-days: 7 
 
       - name: Deployment Summary
         run: |
-          
-          # Add test results
-          failed_tests=$(cat test-results/failed-tests.txt 2>/dev/null || echo "0")
-          echo "Test Results: $failed_tests tests failed"
           
           EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
         
