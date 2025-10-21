@@ -1,6 +1,9 @@
 name: 'CD - Deploy Infra (Dev/Prod)'
 
 on:
+  workflow_run:
+    workflows: ["CD - Deploy Dev Infra", "CD - Deploy to Prod"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       environment:
