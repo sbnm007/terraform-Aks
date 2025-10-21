@@ -20,7 +20,6 @@ jobs:
   deploy-dev:
     name: 'Deploy to Development'
     runs-on: self-hosted
-    if: github.event.workflow_run.head_branch == 'develop'
     environment: development
     defaults:
       run:
@@ -28,29 +27,26 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Terraform Init
         run: |
           echo "=== Terraform Init ==="
-          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
           terraform init
 
       - name: Terraform Plan
-        if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
+        if: github.event.inputs.action == 'plan'
         run: |
           echo "=== Terraform Plan ==="
           terraform plan -out=tfplan
 
       - name: Manual Approval
-        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        if: github.event.inputs.action == 'apply'
         run: |
           echo "Waiting for manual approval before applying to development."
           echo "Approve this job in the GitHub Actions UI to continue."
 
       - name: Terraform Apply
-        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
+        if: github.event.inputs.action == 'apply'
         run: |
           echo "=== Applying to Development Environment ==="
           terraform apply -auto-approve tfplan
@@ -63,7 +59,7 @@ jobs:
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
-        if: (github.event.inputs.action == 'apply' || github.event_name == 'workflow_run') && success()
+        if: (github.event.inputs.action == 'apply' && success() )
         run: |
           echo "=== Post-Deployment Tasks ==="
           CLUSTER_NAME=$(terraform output -raw cluster_name)
