@@ -1,27 +1,20 @@
-name: 'CD - Deploy to Prod'
+name: 'CD - Deploy Prod Infra'
 
 on:
   workflow_run:
     workflows: ["CI - Branch-Specific Validation"]
     types: [completed]
-    branches: [main]  # Only trigger when CI runs on main branch
   workflow_dispatch:
     inputs:
       action:
         description: 'Deployment Action'
         required: true
-        default: 'plan'
+        default: 'apply'
         type: choice
         options:
         - plan
         - apply
         - destroy
-      
-      auto_approve:
-        description: 'Auto-approve apply/destroy'
-        required: false
-        default: false
-        type: boolean
 
 env:
   ENVIRONMENT: prod
@@ -30,124 +23,77 @@ jobs:
   deploy-prod:
     name: 'Deploy to Production'
     runs-on: self-hosted
-    # Only deploy if PROD CI succeeded on main branch
-    if: |
-      (github.event.workflow_run.conclusion == 'success' && 
-       github.event.workflow_run.head_branch == 'main') ||
-      github.event_name == 'workflow_dispatch'
-    
-    environment: production  # GitHub environment with protection rules
-    
+    if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'main')
+    environment: production
     defaults:
       run:
-        working-directory: environments/prod
-
+        working-directory: azure/code/prod
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
-
-      - name: Determine Action
-        id: determine-action
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "action=apply" >> $GITHUB_OUTPUT
-            echo "auto_approve=false" >> $GITHUB_OUTPUT  # Never auto-approve prod
-            echo "🚀 Auto-deployment triggered by successful PROD CI on main"
-          else
-            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
-            echo "auto_approve=${{ github.event.inputs.auto_approve }}" >> $GITHUB_OUTPUT
-            echo "📋 Manual deployment triggered"
-          fi
-
-      - name: Production Deployment Warning
-        run: |
-          echo "🚨 PRODUCTION DEPLOYMENT 🚨"
-          echo "============================"
-          echo "Trigger: ${{ github.event_name }}"
-          echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Action: ${{ steps.determine-action.outputs.action }}"
-          echo "Auto-approve: ${{ steps.determine-action.outputs.auto_approve }}"
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "Source branch: ${{ github.event.workflow_run.head_branch }}"
-            echo "Source conclusion: ${{ github.event.workflow_run.conclusion }}"
-            echo "✅ Triggered by successful PROD CI on main branch"
-          fi
-          echo ""
-          echo "⚠️  This will affect PRODUCTION infrastructure!"
-
-      - name: Check Azure Quota
-        run: |
-          echo "=== Checking Azure Quota ==="
-          az network list-usages --location "West Europe" --query "[?name.value=='PublicIPAddresses']" --output table
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Terraform Init
         run: |
           echo "=== Terraform Init ==="
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
           terraform init
 
       - name: Terraform Plan
-        if: steps.determine-action.outputs.action == 'plan' || steps.determine-action.outputs.action == 'apply'
+        if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
         run: |
           echo "=== Terraform Plan ==="
-          terraform plan -out=tfplan-prod
+          terraform plan -out=tfplan
 
-      - name: Production Approval Gate
-        if: steps.determine-action.outputs.action == 'apply' && github.event_name == 'workflow_run'
+      - name: Manual Approval
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
         run: |
-          echo "🔒 Production deployment requires manual approval"
-          echo "This step will pause for manual review via GitHub Environment protection"
-          echo "Approve in the GitHub Actions UI to proceed"
+          echo "Waiting for manual approval before applying to production."
+          echo "Approve this job in the GitHub Actions UI to continue."
 
       - name: Terraform Apply
-        if: steps.determine-action.outputs.action == 'apply'
+        if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
         run: |
-          if [ "${{ steps.determine-action.outputs.auto_approve }}" = "true" ]; then
-            echo "=== Auto-approved Apply (Production) ==="
-            terraform apply -auto-approve tfplan-prod
-          else
-            echo "=== Applying with confirmation ==="
-            terraform apply -auto-approve tfplan-prod
-          fi
-
-      - name: Post-Deploy Configuration
-        if: steps.determine-action.outputs.action == 'apply'
-        run: |
-          echo "=== Post-Deployment Tasks ==="
-          
-          # Get kubectl config
-          az aks get-credentials --resource-group prod-bookinfo-rg --name prod-bookinfo-aks --overwrite-existing
-          
-          # Wait for cluster readiness
-          kubectl wait --for=condition=Ready nodes --all --timeout=300s
+          echo "=== Applying to Production Environment ==="
+          terraform apply -auto-approve tfplan
 
       - name: Terraform Destroy
-        if: steps.determine-action.outputs.action == 'destroy'
+        if: github.event.inputs.action == 'destroy'
         run: |
-          echo "=== WARNING: Destroying Production Environment ==="
-          echo "This will DELETE all production resources!"
-          
-          if [ "${{ steps.determine-action.outputs.auto_approve }}" = "true" ]; then
-            terraform destroy -auto-approve
-          else
-            terraform destroy
-          fi
+          echo "=== Destroying Production Environment ==="
+          echo "This action cannot be undone!"
+          terraform destroy -auto-approve
+
+      - name: Post-Deployment AKS Check
+        if: (github.event.inputs.action == 'apply' || github.event_name == 'workflow_run') && success()
+        run: |
+          echo "=== Post-Deployment Tasks ==="
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+          echo "Cluster: $CLUSTER_NAME"
+          echo "Resource Group: $RG_NAME"
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
+          kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
       - name: Deployment Summary
+        if: always()
         run: |
-          echo "=== Production Deployment Complete ==="
+          echo "=== Production Deployment Summary ==="
           echo "Environment: ${{ env.ENVIRONMENT }}"
-          echo "Action: ${{ steps.determine-action.outputs.action }}"
           echo "Trigger: ${{ github.event_name }}"
+          echo "Branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "✅ Triggered by successful PROD CI on main branch"
+            echo "Action: apply (auto)"
+            echo "Status: AUTO-DEPLOYED via CI"
+          else
+            echo "Action: ${{ github.event.inputs.action }}"
+            if [ "${{ github.event.inputs.action }}" = "apply" ]; then
+              echo "Status: DEPLOYED"
+            elif [ "${{ github.event.inputs.action }}" = "destroy" ]; then
+              echo "Status: DESTROYED"
+            else
+              echo "Status: PLANNED"
+            fi
           fi
-          echo "Status: ✅ SUCCESS"
-
-      - name: Notify Production Deployment
-        if: steps.determine-action.outputs.action == 'apply'
-        run: |
-          echo "🎉 Production deployment completed successfully!"
-          echo "Production environment is now updated"
-          echo "Please verify all services are functioning correctly"
+          echo "Timestamp: $(date)"
