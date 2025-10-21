@@ -1,9 +1,6 @@
 name: 'CD - Deploy Dev Infra'
 
 on:
-  # workflow_run:
-  #   workflows: ["CI - Branch-Specific Validation"]
-  #   types: [completed]
   workflow_dispatch:
     inputs:
       action:
@@ -20,29 +17,19 @@ env:
   ENVIRONMENT: dev
 
 jobs:
-
   deploy-dev:
     name: 'Deploy to Development'
     runs-on: self-hosted
     if: github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.head_branch == 'develop')
     environment: development
-    steps:
-      - name: Print Branch Info
-        run: echo "Branch: ${{ github.event.workflow_run.head_branch }}"
-
-    environment: development
-    
     defaults:
       run:
         working-directory: azure/code/dev
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
-
-
 
       - name: Terraform Init
         run: |
@@ -52,49 +39,38 @@ jobs:
 
       - name: Terraform Plan
         if: github.event.inputs.action == 'plan' || github.event_name == 'workflow_run'
-        run: terraform plan -out=tfplan
+        run: |
+          echo "=== Terraform Plan ==="
+          terraform plan -out=tfplan
 
-      - name: Upload Plan (for workflow_run)
-        if: github.event_name == 'workflow_run'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan
-          path: azure/code/dev/tfplan
-
-      - name: Download Plan
+      - name: Manual Approval
         if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v4
-        with:
-          name: tfplan
-          path: azure/code/dev/
+        run: |
+          echo "Waiting for manual approval before applying to development."
+          echo "Approve this job in the GitHub Actions UI to continue."
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply' || github.event_name == 'workflow_run'
-        run: terraform apply -auto-approve tfplan
+        run: |
+          echo "=== Applying to Development Environment ==="
+          terraform apply -auto-approve tfplan
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'
         run: |
           echo "=== Destroying Development Environment ==="
-          o "This action cannot be undone!"
+          echo "This action cannot be undone!"
           terraform destroy -auto-approve
 
       - name: Post-Deployment AKS Check
         if: (github.event.inputs.action == 'apply' || github.event_name == 'workflow_run') && success()
         run: |
           echo "=== Post-Deployment Tasks ==="
-          
-          # Get cluster info from Terraform outputs
           CLUSTER_NAME=$(terraform output -raw cluster_name)
           RG_NAME=$(terraform output -raw resource_group_name)
-          
           echo "Cluster: $CLUSTER_NAME"
           echo "Resource Group: $RG_NAME"
-          
-          # Get kubectl config using outputs
           az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
-          
-          # Wait for cluster readiness
           kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
       - name: Deployment Summary
@@ -104,7 +80,6 @@ jobs:
           echo "Environment: ${{ env.ENVIRONMENT }}"
           echo "Trigger: ${{ github.event_name }}"
           echo "Branch: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
-          
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             echo "Action: apply (auto)"
             echo "Status: AUTO-DEPLOYED via CI"
@@ -118,5 +93,4 @@ jobs:
               echo "Status: PLANNED"
             fi
           fi
-          
           echo "Timestamp: $(date)"
