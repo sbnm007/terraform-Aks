@@ -43,9 +43,11 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
 
+
       - name: Terraform Init
         run: |
           echo "=== Terraform Init ==="
+          echo "Branch: ${{ github.event.workflow_run.head_branch }}"
           terraform init
 
       - name: Terraform Plan
