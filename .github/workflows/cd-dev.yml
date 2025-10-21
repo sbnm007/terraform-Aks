@@ -38,11 +38,11 @@ jobs:
           echo "=== Terraform Plan ==="
           terraform plan
 
-      - name: Manual Approval
-        if: github.event.inputs.action == 'plan'
-        run: |
-          echo "Waiting for manual approval before applying to development."
-          echo "Approve this job in the GitHub Actions UI to continue."
+      # - name: Manual Approval
+      #   if: github.event.inputs.action == 'plan'
+      #   run: |
+      #     echo "Waiting for manual approval before applying to development."
+      #     echo "Approve this job in the GitHub Actions UI to continue."
 
       - name: Terraform Apply
         if: github.event.inputs.action == 'plan'
