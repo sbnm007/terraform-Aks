@@ -27,7 +27,7 @@ variable "kubernetes_version" {
 variable "node_count" {
   description = "Number of nodes"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "node_vm_size" {
