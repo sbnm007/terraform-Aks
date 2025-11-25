@@ -110,25 +110,26 @@ kubectl get nodes
 
 
 # My Structure
-Modules.cluster and Modules.networking -> all main logic for resources
-root/
-  locals.tf -> apply transformation, merge maps, compute tags
-  main.tf -> main code which calls modules and initializes variables 
-  outputs.tf ->
-    outputs.tf exposes important values Terraform creates so they can be reused by people, scripts, CI/CD pipelines, or other Terraform modules.
-    Outputs help pass infrastructure details into the next stage of deployment without manually searching for them.
-    we can access output variables with terraform output aks_kube_config
-    You can mask details with sentive = true parameter. But can view when explicitly requested with terraform output outputname
-  providers.tf -> connection to Cloud Terraform Provider
-  variables.tf -> variable default values and descriptions, actual values are in envs
-
-env/
-  dev/
-    backend.tf -> remote backend for state file
-    terraform.tfvars -> actual values for environment CIDR range, no of instances which are read from root/variables.tf
-  prod/
-    backend.tf
-    terraform.tfvars
+.
+├── modules/
+│   ├── cluster/          # AKS cluster module (all resource logic)
+│   └── networking/       # Networking module (VNet, subnets, etc.)
+│
+├── root/
+│   ├── locals.tf         # Local values, tag merging, computed fields
+│   ├── main.tf           # Root configuration that calls modules
+│   ├── outputs.tf        # Exposes values for scripts, CI/CD, or other modules
+│   ├── providers.tf      # Cloud provider configuration (AzureRM)
+│   └── variables.tf      # Variable definitions (types + descriptions)
+│
+└── env/
+    ├── dev/
+    │   ├── backend.tf    # Remote backend configuration (dev state)
+    │   └── terraform.tfvars   # Environment-specific values (CIDRs, counts, names)
+    │
+    └── prod/
+        ├── backend.tf    # Remote backend configuration (prod state)
+        └── terraform.tfvars   # Environment-specific values
 
 
 # Note for variable passing
