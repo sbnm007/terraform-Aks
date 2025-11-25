@@ -11,14 +11,265 @@ env:
   ENVIRONMENT: dev
 
 jobs:
-  deploy-app:
+  deploy-app-dev:
     name: 'Deploy Istio and Bookinfo'
     runs-on: self-hosted
     environment: development
+    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
 
     defaults:
       run:
         working-directory: azure/code/dev
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name:
+        run: |
+          pwd
+          terraform init
+      - name: Configure AKS Credentials
+        run: |
+          terraform init
+          echo "Getting AKS credentials from Terraform outputs"
+
+          # Get cluster info from Terraform outputs
+          CLUSTER_NAME=$(terraform output -raw cluster_name)
+          RG_NAME=$(terraform output -raw resource_group_name)
+
+          echo "Cluster: $CLUSTER_NAME"
+          echo "Resource Group: $RG_NAME"
+          
+          # Configure kubectl using Terraform output
+          az aks get-credentials --resource-group "$RG_NAME" --name "$CLUSTER_NAME" --overwrite-existing
+          
+          # Verify connection
+          kubectl get nodes
+          kubectl get namespaces
+
+      - name: Download and Install Istio
+        run: |
+          echo "Downloading Istio..."
+          curl -L https://istio.io/downloadIstio | sh -
+          
+          # Get the downloaded folder (e.g., istio-1.27.2)
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          echo "Istio directory: $ISTIO_DIR"
+          
+          # Add istioctl to PATH
+          export PATH=$PWD/$ISTIO_DIR/bin:$PATH
+          
+          echo "Installing Istio in AKS cluster from GCR mirror"
+          istioctl install \
+            --set hub=gcr.io/istio-release \
+            --set tag=1.27.2 \
+            --set values.defaultRevision=default -y
+          
+          echo "Waiting for Istio components to be ready..."
+          kubectl wait --for=condition=available --timeout=300s deployment/istiod -n istio-system
+          kubectl wait --for=condition=available --timeout=300s deployment/istio-ingressgateway -n istio-system
+
+      - name: Verify Istio Installation
+        run: |
+          echo "Verifying Istio installation"
+          
+          # Get Istio namespaces
+          kubectl get namespaces | grep istio
+          
+          # Get Istio pods
+          kubectl get pods -n istio-system
+          
+          # Get Istio services
+          kubectl get svc -n istio-system
+          
+          # Get LoadBalancer IP
+          echo "Getting LoadBalancer external IP."
+          kubectl get svc istio-ingressgateway -n istio-system
+      
+      - name: Validate Istio Service Mesh
+        run: |
+          echo "Validating Istio service mesh components"
+          
+          # Test 1: Verify sidecar injection
+          echo "1) Checking sidecar injection in default namespace"
+          kubectl get namespace default --show-labels | grep istio-injection=enabled && echo "Istio injection enabled" || echo "Istio injection not enabled"
+          
+          # Test 2: Check Istio proxy status
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          export PATH=$PWD/$ISTIO_DIR/bin:$PATH
+          
+          # Wait for proxy to be ready
+          sleep 10
+          istioctl proxy-status || echo "Proxy status check failed - continuing"
+          
+          # Test 3: Verify Istio configuration
+          istioctl analyze || echo "Configuration analysis found issues"
+          
+          echo "Istio service mesh validation completed"
+
+      - name: Enable Istio Injection in Default Namespace
+        run: |
+          echo "Enabling Istio injection for default namespace..."
+          kubectl label namespace default istio-injection=enabled --overwrite
+          
+          kubectl get namespace default --show-labels
+
+      - name: Deploy Bookinfo Application
+        run: |
+          echo "Deploying Bookinfo application"
+
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Deploy Bookinfo services
+          kubectl apply -f $ISTIO_DIR/samples/bookinfo/platform/kube/bookinfo.yaml
+          
+          # Wait for deployments
+          echo "Waiting for Bookinfo services"
+          kubectl wait --for=condition=available --timeout=300s deployment/productpage-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/details-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/ratings-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v1
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v2
+          kubectl wait --for=condition=available --timeout=300s deployment/reviews-v3
+
+      - name: Configure Bookinfo Gateway
+        run: |
+          echo "Configuring Bookinfo gateway"
+
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Deploy gateway and virtual service
+          kubectl apply -f $ISTIO_DIR/samples/bookinfo/networking/bookinfo-gateway.yaml
+          
+          # Verify gateway
+          kubectl get gateway
+          kubectl get virtualservice
+
+      - name: Install Prometheus, Grafana, and Kiali
+        run: |
+          echo "Installing Prometheus, Grafana, and Kiali"
+          
+          # Find Istio directory
+          ISTIO_DIR=$(ls -d istio-* | head -1)
+          
+          # Install only Prometheus, Grafana, and Kiali
+          echo "Installing Prometheus..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/prometheus.yaml
+          
+          echo "Installing Grafana..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/grafana.yaml
+          
+          echo "Installing Kiali..."
+          kubectl apply -f $ISTIO_DIR/samples/addons/kiali.yaml
+          
+          echo "Waiting for observability components to be ready"
+          
+          # Wait for deployments with timeout
+          kubectl wait --for=condition=available --timeout=300s deployment/prometheus -n istio-system || echo "Prometheus timeout - continuing"
+          kubectl wait --for=condition=available --timeout=300s deployment/grafana -n istio-system || echo "Grafana timeout - continuing"
+          kubectl wait --for=condition=available --timeout=300s deployment/kiali -n istio-system || echo "Kiali timeout - continuing"
+          
+          echo "Prometheus, Grafana, and Kiali installation completed"
+
+      - name: Expose and Kiali
+        run: |
+          echo "Exposing Kiali with LoadBalancer services"
+          
+          # Change existing service type from ClusterIP to LoadBalancer
+          
+          echo "Exposing Kiali..."
+          kubectl patch service kiali -n istio-system -p '{"spec":{"type":"LoadBalancer"}}'
+          sleep 10
+          echo "Kiali exposed"
+
+      - name: Initialize Test Tracking
+        run: |
+          mkdir -p test-results
+          echo "0" > test-results/failed-tests.txt
+          echo "" > test-results/failures.txt
+
+      - name: Verify Application Deployment
+        run: |
+          echo "Verifying application deployment"
+
+          # Get all services
+          kubectl get services
+          
+          # Get all pods
+          kubectl get pods
+          
+          # Get if pods
+          kubectl get pods -o wide
+          
+          # Get gateway and virtual service
+          kubectl get gateway bookinfo-gateway
+          kubectl get virtualservice bookinfo
+      
+      - name: Run Basic Tests
+        run: |
+          echo "Running basic application tests"
+          
+          # Test 1: Check if all pods are running
+          echo "1. Checking pod status..."
+          kubectl get pods -o wide
+          
+          # Test 2: Check services
+          echo "2. Checking services..."
+          kubectl get svc
+          
+          # Test 3: Check gateway
+          echo "3. Checking gateway..."
+          kubectl get gateway bookinfo-gateway
+          
+          # Test 4: Check virtual service
+          echo "4. Checking virtual service..."
+          kubectl get virtualservice bookinfo
+          
+          echo "Basic tests completed"
+
+      - name: Run Integration Tests
+        run: |
+          echo "Running integration tests from tests directory"
+          for test_script in ../tests/*; do
+            if [ -x "$test_script" ]; then
+              echo "Executing $test_script"
+              "$test_script"
+            fi
+          done
+
+      - name: Get URLs
+        run: |
+          echo "Application and Dashboard URLs"
+          echo "============================="
+          
+          # Get and display URLs
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+          
+          echo "Bookinfo App: http://$EXTERNAL_IP/productpage"
+          echo "Kiali: http://$KIALI_IP:20001"
+          echo "Prometheus: kubectl port-forward -n istio-system svc/prometheus 9090:9090"
+
+
+      - name: Deployment Summary
+        run: |
+          
+          EXTERNAL_IP=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+        
+          # Get external IPs for Kiali 
+          KIALI_IP=$(kubectl get svc kiali -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "pending")
+
+  deploy-app-prod:
+    name: 'Deploy Istio and Bookinfo'
+    runs-on: self-hosted
+    environment: production
+    if: github.ref == 'refs/heads/prod' || github.base_ref == 'prod'
+
+    defaults:
+      run:
+        working-directory: azure/code/prod
 
     steps:
       - name: Checkout Code

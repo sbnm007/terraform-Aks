@@ -1,73 +1,68 @@
+
 # Core Environment Variables
 variable "location" {
-  description = "Azure region"
+  description = "Azure region where resources are deployed"
   type        = string
+  #Default Region
   default     = "West Europe"
 }
 
 variable "resource_group_name" {
   description = "Resource group name"
   type        = string
-  default     = "bookinfo-prod-rg"
 }
 
 variable "cluster_name" {
   description = "AKS cluster name"
   type        = string
-  default     = "bookinfo-prod-aks"
 }
+
 
 # AKS Configuration
 variable "kubernetes_version" {
-  description = "Kubernetes version"
+  description = "Kubernetes version for the AKS cluster"
   type        = string
-  default     = "1.31.10"
+  #default version being used
+  default     = "1.31.10" You may keep this default if ALL environments use the same region.
 }
 
 variable "node_count" {
-  description = "Number of nodes"
+  description = "Number of nodes in the AKS node pool"
   type        = number
-  default     = 2
 }
 
 variable "node_vm_size" {
   description = "VM size for nodes"
   type        = string
+  # Dev and prod use the same VM size.
   default     = "Standard_B2s"
 }
 
+
 # Networking Configuration
 variable "vnet_address_space" {
-  description = "Address space for virtual network"
+  description = "Virtual network CIDR block"
   type        = list(string)
-  default     = ["10.0.0.0/16"]
 }
 
 variable "subnet_address_prefix" {
   description = "Address prefix for AKS subnet"
   type        = list(string)
-  default     = ["10.0.1.0/24"]
 }
 
 variable "service_cidr" {
-  description = "CIDR for Kubernetes services"
+  description = "CIDR block for Kubernetes service IPs"
   type        = string
-  default     = "10.1.0.0/16"
 }
 
 variable "dns_service_ip" {
-  description = "IP address for Kubernetes DNS service"
+  description = "DNS IP address inside the service CIDR"
   type        = string
-  default     = "10.1.0.10"
 }
+
 
 # Tags
 variable "tags" {
-  description = "Tags to apply to resources"
+  description = "Tags to apply to all resources"
   type        = map(string)
-  default = {
-    Environment = "prod"
-    Project     = "bookinfo"
-    ManagedBy   = "terraform"
-  }
 }

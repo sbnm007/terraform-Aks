@@ -1,0 +1,59 @@
+
+First I explored Istio Service Mesh and its features. Explored Kiali Dashboards 
+
+Local Setup : Metallb + minikube + bookinfo application
+
+Got to understand kubernetes deployment is required so a kubernetes service
+
+
+
+Second has to consider a cloud provider which would benefit, 
+IKS required credit card so proceeded with azure as I had student credits
+
+
+
+Created Terraform code locally with azure login
+Refer Documentation and understand what exact services are being used and read about it
+
+Remote backend for state file to manage single source of truth for infrastructure and state locking
+
+Variables defined clearly
+
+Modules created for EKS and Networking to logically sepearte and reuse
+
+output variables used in CICD pipelines
+
+Once hcl code were ready, CICD was made with Github ACtions
+
+All Actions were performed from admin server to deploy dev and prod environments
+
+
+
+Defined a structure, based on usecase 
+followed directory seperation for environments rather than workspaces
+
+
+Lost Time trying to Deploy through CICD, rather than completing entire flow
+
+
+Fixing CICD issues until the end
+
+
+Ideal Git Branching Strategy for 2 Environments
+
+Dev Branch
+All new features, bug fixes, and infrastructure changes are first merged into the develop branch. Deployments from this branch target the dev environment for testing and validation.
+
+Main Branch
+Once changes are tested and stable in develop, they are merged into the main branch. Deployments from main target the production environment.
+
+Pull Requests
+All changes should be submitted as pull requests against develop. After review and successful CI validation, they are merged.
+When ready for production, create a pull request from develop to main.
+
+So,
+develop → Dev environment
+
+main → Production environment
+
+Only tested and reviewed code reaches production.

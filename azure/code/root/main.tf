@@ -4,7 +4,7 @@
 resource "azurerm_resource_group" "bookinfo" {
   name     = var.resource_group_name
   location = var.location
-  tags     = var.tags
+  tags     = local.final_tags
 }
 
 # Networking Module
@@ -16,7 +16,7 @@ module "networking" {
   resource_group_name   = azurerm_resource_group.bookinfo.name
   vnet_address_space    = var.vnet_address_space
   subnet_address_prefix = var.subnet_address_prefix
-  tags                  = var.tags
+  tags                  = local.final_tags
 
   depends_on = [azurerm_resource_group.bookinfo]
 }
@@ -34,7 +34,7 @@ module "cluster" {
   subnet_id           = module.networking.subnet_id
   service_cidr        = var.service_cidr
   dns_service_ip      = var.dns_service_ip
-  tags                = var.tags
+  tags                = local.final_tags
 
   depends_on = [module.networking]
 }
