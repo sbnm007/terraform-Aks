@@ -7,9 +7,6 @@ on:
   #   types: [completed]
   workflow_dispatch:
 
-env:
-  ENVIRONMENT: dev
-
 jobs:
   deploy-app-dev:
     name: 'Deploy Istio and Bookinfo'
