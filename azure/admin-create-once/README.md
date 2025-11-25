@@ -1,11 +1,17 @@
-# Steps to create admin
+
+
+
+
+
+# Steps to create configure Admin Server
+
+One time Manual setup
 
 Configure ssh key
 ssh-keygen -t rsa -b 4096 -f ~/.ssh/admin_rsa
 
 check if it exisits
 ls -la ~/.ssh/admin_rsa.pub
-
 
 get your public ip
 curl -s https://ipinfo.io/ip 
@@ -16,6 +22,7 @@ curl -s https://ipinfo.io/ip
 2) Allow ssh rule for my ip
 
 3) Configure Self hosted runner with steps from Github by sshing into your instance
+
 
 
 # Configured Self hosted runner agent on server
@@ -36,6 +43,7 @@ sudo apt update && sudo apt install terraform
 
 
 #Install kubectl
+
 # SSH to your admin server
 ssh azureuser@$(cd admin-create-once && terraform output -raw public_ip)
 
@@ -57,15 +65,4 @@ sudo apt-get install -y kubectl
 
 # Verify installation
 kubectl version --client
-
-
-
-
-#Issue
-I was directly deploying istio images but faced image pull error probably because of rate limitting to my azure vm
-
-
-Solution to build and deploy and test custom images - Docker was down and came up
-
-
 
