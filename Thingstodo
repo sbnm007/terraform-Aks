@@ -1,0 +1,26 @@
+If more time,
+For CICD,
+Create better CICD structure (1 CI for 2 envs, 1 CD for 2 env - for terraform, 1CD for 2 env for kubernetes deployment)
+
+experiment passing variables through cli
+
+Fix CICD issues and do extensive testing for CICD
+
+Configure secrets into kubernetes gateway
+
+For Terraform,
+Explore terraform kubernetes operator and check if it works for istio
+Use helm charts for deploying
+Explore terraform workspaces for experimenting
+No secrets used can use it for some usecase
+
+
+If more costs,
+Direct DNS Association in terraform itself
+Secrets Manager Integration
+
+
+
+
+
+

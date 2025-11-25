@@ -46,5 +46,4 @@ variable "dns_service_ip" {
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
-  default     = {}
 }
