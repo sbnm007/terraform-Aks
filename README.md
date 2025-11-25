@@ -106,38 +106,51 @@ kubectl get nodes
   - LoadBalancer services created by Kubernetes (e.g., Istio Ingress, Kiali) are not directly tracked by Terraform, but their underlying Azure resources are managed by AKS and will be deleted when the cluster is destroyed.
   - State file is stored remotely for reliability, but access control must be managed.
 
+Here is a clean, professional **README.md** section you can paste directly into your Git repo:
 
+---
 
+# 📦 Project Structure
 
-# My Structure
+```
 .
 ├── modules/
-│   ├── cluster/          # AKS cluster module (all resource logic)
-│   └── networking/       # Networking module (VNet, subnets, etc.)
+│   ├── cluster/               # AKS cluster module (all resource logic)
+│   └── networking/            # Networking module (VNet, subnets, etc.)
 │
 ├── root/
-│   ├── locals.tf         # Local values, tag merging, computed fields
-│   ├── main.tf           # Root configuration that calls modules
-│   ├── outputs.tf        # Exposes values for scripts, CI/CD, or other modules
-│   ├── providers.tf      # Cloud provider configuration (AzureRM)
-│   └── variables.tf      # Variable definitions (types + descriptions)
+│   ├── locals.tf              # Local values, tag merging, computed fields
+│   ├── main.tf                # Root configuration that calls modules
+│   ├── outputs.tf             # Exposes values for scripts, CI/CD pipelines, or other modules
+│   ├── providers.tf           # Cloud provider configuration (AzureRM)
+│   └── variables.tf           # Variable definitions (types + descriptions)
 │
 └── env/
     ├── dev/
-    │   ├── backend.tf    # Remote backend configuration (dev state)
-    │   └── terraform.tfvars   # Environment-specific values (CIDRs, counts, names)
+    │   ├── backend.tf         # Remote backend configuration (dev state)
+    │   └── terraform.tfvars   # Environment-specific values (CIDRs, resource sizes, names)
     │
     └── prod/
-        ├── backend.tf    # Remote backend configuration (prod state)
+        ├── backend.tf         # Remote backend configuration (prod state)
         └── terraform.tfvars   # Environment-specific values
+```
 
+---
 
-# Note for variable passing
-Terraform variables work like function parameters:
-Each module defines its own variables, and the root passes values into them.
-Variable names don’t need to match across modules, but keeping them consistent improves clarity and structure.
+# 📘 Notes on Variable Passing
 
+Terraform variables work similarly to **function parameters**:
 
+* Each **module** defines its own variables (`variables.tf`).
+* The **root module** passes values into child modules, just like calling a function.
+* Variable names do **not** need to match between root and module,
+  but keeping them consistent improves clarity and reduces confusion.
+* Environment-specific values are provided via `terraform.tfvars` in each environment folder.
+
+This structure ensures clean separation between:
+
+* **Reusable module logic**
+* **Environment configuration**
+* **Infrastructure orchestration (root)**
 
 Thanks!
-
